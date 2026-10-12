@@ -22,7 +22,7 @@ Monetization.StudioOwnsAllPasses = false
 Monetization.Passes = {
 	{
 		Key = "VIP",
-		Id = 0, -- << VIP game pass id
+		Id = 2027211169,
 		Price = 349,
 		Name = "VIP",
 		Icon = "👑",
@@ -31,7 +31,7 @@ Monetization.Passes = {
 	},
 	{
 		Key = "DoubleCoins",
-		Id = 0, -- << 2x Coins game pass id
+		Id = 2025405231,
 		Price = 399,
 		Name = "2x Coins",
 		Icon = "💰",
@@ -40,7 +40,7 @@ Monetization.Passes = {
 	},
 	{
 		Key = "PerfectPush",
-		Id = 0, -- << Perfect Push game pass id
+		Id = 2025975197,
 		Price = 199,
 		Name = "Perfect Push",
 		Icon = "🎯",
@@ -49,7 +49,7 @@ Monetization.Passes = {
 	},
 	{
 		Key = "MegaStart",
-		Id = 0, -- << Mega Start game pass id
+		Id = 2025675230,
 		Price = 249,
 		Name = "Mega Start",
 		Icon = "⛄",
@@ -58,7 +58,7 @@ Monetization.Passes = {
 	},
 	{
 		Key = "LuckyCharm",
-		Id = 0, -- << Lucky Charm game pass id
+		Id = 2026497223,
 		Price = 179,
 		Name = "Lucky Charm",
 		Icon = "🍀",
@@ -67,7 +67,7 @@ Monetization.Passes = {
 	},
 	{
 		Key = "RainbowBall",
-		Id = 0, -- << Rainbow Ball game pass id
+		Id = 2025657163,
 		Price = 149,
 		Name = "Rainbow Ball",
 		Icon = "🌈",
@@ -86,7 +86,7 @@ Monetization.Passes = {
 Monetization.Products = {
 	{
 		Key = "CoinsSmall",
-		Id = 0, -- << product id
+		Id = 3718165495,
 		Price = 25,
 		Name = "Pile of Coins",
 		Icon = "✨",
@@ -97,7 +97,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "CoinsMedium",
-		Id = 0, -- << product id
+		Id = 3718165497,
 		Price = 99,
 		Name = "Bag of Coins",
 		Icon = "💰",
@@ -108,7 +108,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "CoinsLarge",
-		Id = 0, -- << product id
+		Id = 3718165503,
 		Price = 299,
 		Name = "Chest of Coins",
 		Icon = "📦",
@@ -119,7 +119,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "CoinsHuge",
-		Id = 0, -- << product id
+		Id = 3718165507,
 		Price = 799,
 		Name = "Vault of Coins",
 		Icon = "🏦",
@@ -130,7 +130,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "Turbo5",
-		Id = 0, -- << product id
+		Id = 3718165483,
 		Price = 99,
 		Name = "Turbo Boost x5",
 		Icon = "🚀",
@@ -141,7 +141,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "Turbo20",
-		Id = 0, -- << product id
+		Id = 3718165489,
 		Price = 299,
 		Name = "Turbo Boost x20",
 		Icon = "🔥",
@@ -152,7 +152,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "Boost15",
-		Id = 0, -- << product id
+		Id = 3718165511,
 		Price = 49,
 		Name = "x2 Coins (15 min)",
 		Icon = "⏱️",
@@ -163,7 +163,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "Boost60",
-		Id = 0, -- << product id
+		Id = 3718165517,
 		Price = 149,
 		Name = "x2 Coins (1 hour)",
 		Icon = "⌛",
@@ -174,7 +174,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "ServerStorm",
-		Id = 0, -- << product id
+		Id = 3718165522,
 		Price = 199,
 		Name = "Server Coin Storm",
 		Icon = "🌪️",
