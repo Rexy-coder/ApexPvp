@@ -636,7 +636,7 @@ function UpgradeTree.open()
 			UIKit.tween(view.Scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 		end)
 	end
-	UIKit.PlaySound("Click", 0.9)
+	UIKit.PlaySound("Open", 0.9)
 end
 
 UpgradeTree.close = function()

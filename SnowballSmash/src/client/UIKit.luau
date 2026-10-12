@@ -180,7 +180,7 @@ end
 ----------------------------------------------------------------------
 -- Sound hook (set by Effects so UI clicks can play sounds)
 ----------------------------------------------------------------------
-UIKit.PlaySound = function(_name: string, _pitch: number?) end
+UIKit.PlaySound = function(_name: string, _pitch: number?, _volume: number?) end
 
 ----------------------------------------------------------------------
 -- Chunky 3D button: dark base, coloured face that sinks when pressed.
@@ -344,6 +344,7 @@ function UIKit.button(opts: ButtonOptions): Button
 	local hovering = false
 	hitbox.MouseEnter:Connect(function()
 		hovering = true
+		UIKit.PlaySound("Hover", 1)
 		UIKit.tween(scale, 0.18, { Scale = 1.06 }, Enum.EasingStyle.Back)
 	end)
 	hitbox.MouseLeave:Connect(function()
@@ -390,6 +391,47 @@ function UIKit.closeButton(parent: Instance, position: UDim2, z: number?, onClic
 	b.Label.AnchorPoint = Vector2.new(0.5, 0.5)
 	b.Label.TextXAlignment = Enum.TextXAlignment.Center
 	return b
+end
+
+----------------------------------------------------------------------
+-- Text input box
+----------------------------------------------------------------------
+function UIKit.textbox(parent: Instance, placeholder: string, size: UDim2, position: UDim2?): TextBox
+	local frame = new("Frame", {
+		BackgroundColor3 = Color3.fromRGB(46, 28, 18),
+		Size = size,
+		Position = position or UDim2.new(),
+		Parent = parent,
+	})
+	UIKit.corner(frame, 10)
+	UIKit.stroke(frame, 2.5, C.WoodLight)
+	local box = new("TextBox", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -20, 1, -8),
+		Position = UDim2.fromOffset(10, 4),
+		Font = UIKit.Font,
+		Text = "",
+		PlaceholderText = placeholder,
+		PlaceholderColor3 = Color3.fromRGB(170, 140, 120),
+		TextColor3 = C.White,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ClearTextOnFocus = false,
+		Parent = frame,
+	})
+	box.Focused:Connect(function()
+		local st = frame:FindFirstChildOfClass("UIStroke")
+		if st then
+			UIKit.tween(st, 0.15, { Color = C.Yellow })
+		end
+	end)
+	box.FocusLost:Connect(function()
+		local st = frame:FindFirstChildOfClass("UIStroke")
+		if st then
+			UIKit.tween(st, 0.15, { Color = C.WoodLight })
+		end
+	end)
+	return box
 end
 
 ----------------------------------------------------------------------
@@ -568,7 +610,7 @@ function UIKit.openPanel(panel: Panel)
 	UIKit.tween(panel.Scale, 0.38, { Scale = 1 }, Enum.EasingStyle.Back)
 	UIKit.tween(panel.Root, 0.3, { Position = UDim2.fromScale(0.5, 0.52) }, Enum.EasingStyle.Quint)
 	UIKit.setBlur(true)
-	UIKit.PlaySound("Click", 0.9)
+	UIKit.PlaySound("Open", 0.9)
 end
 
 function UIKit.closePanel(panel: Panel)
@@ -577,6 +619,7 @@ function UIKit.closePanel(panel: Panel)
 	end
 	panel.IsOpen = false
 	UIKit.setBlur(false)
+	UIKit.PlaySound("Close", 1)
 	local t = UIKit.tween(panel.Scale, 0.2, { Scale = 0.6 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 	t.Completed:Connect(function()
 		if not panel.IsOpen then

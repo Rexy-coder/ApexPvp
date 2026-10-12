@@ -1,7 +1,8 @@
 --!nonstrict
 -- Snowball Smash: the run itself. The snowball is simulated on the client
--- along the mountain slope (no physics jitter), grows as it rolls, smashes
--- everything in its way and the camera chases it.
+-- along the endless slope (no physics jitter), grows as it rolls, smashes
+-- everything in its way and the camera chases it. Course chunks are built
+-- ahead of the ball and removed behind it.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,176 +11,90 @@ local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
 local TweenService = game:GetService("TweenService")
 
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local CourseGen = require(Shared:WaitForChild("CourseGen"))
 local Effects = require(script.Parent:WaitForChild("Effects"))
 local Hud = require(script.Parent:WaitForChild("Hud"))
+local CourseBuilder = require(script.Parent:WaitForChild("CourseBuilder"))
 
 local P = Config.Physics
 local player = Players.LocalPlayer
 
 local Runner = {}
 Runner.State = "Idle" -- Idle | Charge | Rolling | Done
-Runner.OnFinish = function(_report: { [string]: number }) end
+Runner.OnFinish = function(_report) end
+
+local WIDTH = CourseGen.Width
+local CHUNK = CourseGen.ChunkLength
+local START_S = CourseGen.StartOffset
+local RIGHT = CourseGen.Right
+local surface = CourseGen.Surface
+
+local AHEAD = 650 -- studs of course kept built in front of the ball
+local BEHIND = 120
 
 ----------------------------------------------------------------------
--- Slope geometry (read from the Course folder's attributes)
+-- Course chunks (each player smashes their own copy)
 ----------------------------------------------------------------------
-local course = Workspace:WaitForChild("Course")
-local P0 = course:GetAttribute("SlopeOrigin") :: Vector3
-local ANGLE = math.rad(course:GetAttribute("SlopeAngle") :: number)
-local LENGTH = course:GetAttribute("SlopeLength") :: number
-local WIDTH = course:GetAttribute("SlopeWidth") :: number
-local START_S = (course:GetAttribute("StartOffset") :: number?) or -16
+local courseFolder = Instance.new("Folder")
+courseFolder.Name = "LocalCourse"
+courseFolder.Parent = Workspace
 
-local RIGHT = Vector3.new(1, 0, 0)
-local DOWN = Vector3.new(0, -math.sin(ANGLE), -math.cos(ANGLE)) -- forward, down the slope
-local NORMAL = Vector3.new(0, math.cos(ANGLE), -math.sin(ANGLE))
-local FLAT = Vector3.new(0, 0, -1)
-local SLOPE_CF = CFrame.fromMatrix(P0, RIGHT, NORMAL)
+local chunks = {} -- [index] = CourseBuilder.Built
+local mutationOn = false
+local courseDirty = true
 
-local function surface(s: number, x: number): (Vector3, Vector3, Vector3)
-	if s < 0 then
-		return P0 + FLAT * s + RIGHT * x, Vector3.yAxis, FLAT
+local function buildChunk(i: number)
+	if chunks[i] or i < 0 then
+		return
 	end
-	return P0 + DOWN * s + RIGHT * x, NORMAL, DOWN
+	chunks[i] = CourseBuilder.Build(i, courseFolder, mutationOn)
 end
 
-local function toSlope(p: Vector3): (number, number, number)
-	local l = SLOPE_CF:PointToObjectSpace(p)
-	return -l.Z, l.X, l.Y -- s, x, height
+local function dropChunk(i: number)
+	local c = chunks[i]
+	if c then
+		c.Folder:Destroy()
+		chunks[i] = nil
+	end
 end
 
-----------------------------------------------------------------------
--- Course records (measured once from the template)
-----------------------------------------------------------------------
-local template = ReplicatedStorage:WaitForChild("CourseTemplate")
-local smashTemplate = template:WaitForChild("Smashables")
-local pickupTemplate = template:FindFirstChild("Pickups")
-
-type Obstacle = {
-	S0: number,
-	S1: number,
-	X0: number,
-	X1: number,
-	Top: number,
-	Toughness: number,
-	Coins: number,
-	Kind: string,
-	Template: Instance,
-	Model: Instance?,
-	Smashed: boolean,
-}
-type Pickup = { S: number, X: number, Template: BasePart, Part: BasePart?, Base: CFrame, Taken: boolean }
-type Pad = { S0: number, S1: number, X0: number, X1: number, Top: number, Kind: string, Part: BasePart }
-
-local function partsOf(inst: Instance): { BasePart }
-	local list = {}
-	if inst:IsA("BasePart") then
-		table.insert(list, inst)
-	end
-	for _, d in inst:GetDescendants() do
-		if d:IsA("BasePart") then
-			table.insert(list, d)
+-- keep chunks around `s` built; build at most `budget` new ones this call
+local function streamAround(s: number, budget: number)
+	local first = math.max(0, math.floor((s - BEHIND) / CHUNK))
+	local last = math.floor((s + AHEAD) / CHUNK)
+	for i in chunks do
+		if i < first then
+			dropChunk(i)
 		end
 	end
-	return list
-end
-
-local function measure(inst: Instance): (number, number, number, number, number)
-	local s0, s1, x0, x1, top = math.huge, -math.huge, math.huge, -math.huge, -math.huge
-	for _, part in partsOf(inst) do
-		local half = part.Size / 2
-		for _, sx in { -1, 1 } do
-			for _, sy in { -1, 1 } do
-				for _, sz in { -1, 1 } do
-					local corner = part.CFrame:PointToWorldSpace(Vector3.new(half.X * sx, half.Y * sy, half.Z * sz))
-					local s, x, h = toSlope(corner)
-					s0 = math.min(s0, s)
-					s1 = math.max(s1, s)
-					x0 = math.min(x0, x)
-					x1 = math.max(x1, x)
-					top = math.max(top, h)
-				end
+	local built = 0
+	for i = first, last do
+		if not chunks[i] then
+			buildChunk(i)
+			built += 1
+			if built >= budget then
+				return
 			end
 		end
 	end
-	return s0, s1, x0, x1, top
 end
 
-local obstacles: { Obstacle } = {}
-for _, child in smashTemplate:GetChildren() do
-	local s0, s1, x0, x1, top = measure(child)
-	if s0 < math.huge then
-		table.insert(obstacles, {
-			S0 = s0,
-			S1 = s1,
-			X0 = x0,
-			X1 = x1,
-			Top = top,
-			Toughness = (child:GetAttribute("Toughness") :: number?) or 1,
-			Coins = (child:GetAttribute("Coins") :: number?) or 10,
-			Kind = (child:GetAttribute("Kind") :: string?) or child.Name,
-			Template = child,
-			Model = nil,
-			Smashed = false,
-		})
+function Runner.resetCourse(mutation: boolean?)
+	for i in chunks do
+		dropChunk(i)
 	end
-end
-table.sort(obstacles, function(a, b)
-	return a.S0 < b.S0
-end)
-
-local pickups: { Pickup } = {}
-if pickupTemplate then
-	for _, child in pickupTemplate:GetChildren() do
-		if child:IsA("BasePart") then
-			local s, x = toSlope(child.Position)
-			table.insert(pickups, { S = s, X = x, Template = child, Part = nil, Base = child.CFrame, Taken = false })
-		end
-	end
-	table.sort(pickups, function(a, b)
-		return a.S < b.S
-	end)
-end
-
-local pads: { Pad } = {}
-local padFolder = course:FindFirstChild("Pads")
-if padFolder then
-	for _, child in padFolder:GetDescendants() do
-		if child:IsA("BasePart") and child:GetAttribute("PadType") then
-			local s0, s1, x0, x1, top = measure(child)
-			table.insert(pads, { S0 = s0, S1 = s1, X0 = x0, X1 = x1, Top = top, Kind = child:GetAttribute("PadType") :: string, Part = child })
-		end
-	end
-end
-
-----------------------------------------------------------------------
--- Local copy of the course (each player smashes their own copy)
-----------------------------------------------------------------------
-local localCourse: Folder? = nil
-local courseDirty = true
-
-function Runner.resetCourse()
-	if localCourse then
-		localCourse:Destroy()
-	end
-	local folder = Instance.new("Folder")
-	folder.Name = "LocalCourse"
-	for _, o in obstacles do
-		local clone = o.Template:Clone()
-		clone.Parent = folder
-		o.Model = clone
-		o.Smashed = false
-	end
-	for _, p in pickups do
-		local clone = p.Template:Clone()
-		clone.Parent = folder
-		p.Part = clone
-		p.Taken = false
-	end
-	folder.Parent = Workspace
-	localCourse = folder
+	mutationOn = mutation == true
+	streamAround(0, 99)
 	courseDirty = false
+end
+
+-- e.g. a Mutation Storm started while standing in the lobby
+function Runner.setMutation(on: boolean)
+	if on ~= mutationOn and Runner.State == "Idle" then
+		Runner.resetCourse(on)
+	end
 end
 
 ----------------------------------------------------------------------
@@ -195,18 +110,9 @@ local CLUMP_DIRS = {
 	Vector3.new(0.2, 1, -0.3).Unit,
 }
 
-type Ball = {
-	Model: Model,
-	Body: Part,
-	Clumps: { Part },
-	Carrier: Part,
-	Spray: ParticleEmitter,
-	Trail: Trail,
-}
+local ball = nil
 
-local ball: Ball? = nil
-
-local function makeBall(skin: Config.Skin): Ball
+local function makeBall(skin)
 	local model = Instance.new("Model")
 	model.Name = "Snowball"
 
@@ -280,42 +186,31 @@ local function makeBall(skin: Config.Skin): Ball
 	spray.Rate = 0
 	spray.Parent = a0
 
+	-- flames that show while a Turbo is active
+	local flames = Instance.new("ParticleEmitter")
+	flames.Color = ColorSequence.new(Color3.fromRGB(255, 220, 60), Color3.fromRGB(255, 60, 30))
+	flames.LightEmission = 1
+	flames.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 2.5), NumberSequenceKeypoint.new(1, 0) })
+	flames.Lifetime = NumberRange.new(0.25, 0.45)
+	flames.Speed = NumberRange.new(10, 20)
+	flames.SpreadAngle = Vector2.new(25, 25)
+	flames.EmissionDirection = Enum.NormalId.Back
+	flames.Rate = 0
+	flames.Parent = carrier
+
 	model.PrimaryPart = body
 	model.Parent = Workspace
-	return { Model = model, Body = body, Clumps = clumps, Carrier = carrier, Spray = spray, Trail = trail }
+	return { Model = model, Body = body, Clumps = clumps, Carrier = carrier, Spray = spray, Trail = trail, Flames = flames, Skin = skin }
 end
 
 ----------------------------------------------------------------------
 -- Run state
 ----------------------------------------------------------------------
-type RunState = {
-	S: number,
-	X: number,
-	VX: number,
-	H: number,
-	VH: number,
-	RampH: number,
-	V: number,
-	R: number,
-	Roll: number,
-	Combo: number,
-	LastSmash: number,
-	BestCombo: number,
-	Smashed: number,
-	Coins: number,
-	PadsUsed: { [Pad]: boolean },
-	Stats: Config.Stats,
-	Time: number,
-	Stopped: number,
-	FirstObstacle: number,
-	FirstPickup: number,
-}
-
-local run: RunState? = nil
+local run = nil
 local camPos: Vector3? = nil
 local camLook: Vector3? = nil
 
-local function newRun(stats: Config.Stats): RunState
+local function newRun(stats)
 	return {
 		S = START_S,
 		X = 0,
@@ -324,19 +219,17 @@ local function newRun(stats: Config.Stats): RunState
 		VH = 0,
 		RampH = 0,
 		V = 0,
-		R = P.StartRadius,
+		R = stats.StartRadius or P.StartRadius,
 		Roll = 0,
 		Combo = 0,
 		LastSmash = -100,
 		BestCombo = 0,
 		Smashed = 0,
 		Coins = 0,
-		PadsUsed = {},
 		Stats = stats,
 		Time = 0,
 		Stopped = 0,
-		FirstObstacle = 1,
-		FirstPickup = 1,
+		TurboUntil = -1,
 	}
 end
 
@@ -344,7 +237,7 @@ end
 -- Steering input: keyboard, gamepad stick, or touching either side
 ----------------------------------------------------------------------
 local stickX = 0
-local touches: { [InputObject]: number } = {}
+local touches = {}
 
 UserInputService.InputChanged:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Thumbstick1 then
@@ -387,7 +280,17 @@ end
 ----------------------------------------------------------------------
 -- Smashing
 ----------------------------------------------------------------------
-local function breakApart(o: Obstacle, st: RunState, center: Vector3)
+local function partsOf(inst: Instance)
+	local list = {}
+	for _, d in inst:GetDescendants() do
+		if d:IsA("BasePart") then
+			table.insert(list, d)
+		end
+	end
+	return list
+end
+
+local function breakApart(o, st, center: Vector3)
 	local model = o.Model
 	if not model then
 		return
@@ -398,12 +301,12 @@ local function breakApart(o: Obstacle, st: RunState, center: Vector3)
 		part.CanCollide = true
 		part.CanQuery = false
 		part.CanTouch = false
-		local away = (part.Position - center)
+		local away = part.Position - center
 		away = Vector3.new(away.X, 0, away.Z)
 		if away.Magnitude > 0.01 then
 			away = away.Unit
 		end
-		part.AssemblyLinearVelocity = DOWN * (st.V * 0.8 + 12)
+		part.AssemblyLinearVelocity = CourseGen.Down * (st.V * 0.8 + 12)
 			+ Vector3.yAxis * (22 + math.random() * 26)
 			+ away * (10 + math.random() * 20)
 		part.AssemblyAngularVelocity = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 18
@@ -419,12 +322,14 @@ local function breakApart(o: Obstacle, st: RunState, center: Vector3)
 	o.Model = nil
 end
 
-local function smash(o: Obstacle, st: RunState, center: Vector3)
+local function smash(o, st, center: Vector3)
 	o.Smashed = true
 	local stats = st.Stats
-	local power = (st.R / P.StartRadius) * stats.Smash
-	local loss = o.Toughness * P.SmashLoss / power
-	st.V = math.max(0, st.V - loss)
+	local turbo = st.Time < st.TurboUntil
+	if not turbo then
+		local power = (st.R / P.StartRadius) * stats.Smash
+		st.V = math.max(0, st.V - o.Toughness * P.SmashLoss / power)
+	end
 
 	if st.Time - st.LastSmash <= stats.ComboTime then
 		st.Combo += 1
@@ -437,7 +342,7 @@ local function smash(o: Obstacle, st: RunState, center: Vector3)
 	local crit = math.random() < stats.Crit
 	local mult = math.min(st.Combo, P.MaxCombo)
 	local sizeBonus = 1 + (st.R - P.StartRadius) / P.SizeBonusDiv
-	local coins = o.Coins * mult * sizeBonus * stats.CoinMult * (if crit then 2 else 1)
+	local coins = o.Coins * mult * sizeBonus * stats.CoinMult * o.Mult * (if crit then 2 else 1)
 	coins = math.floor(coins + 0.5)
 	st.Coins += coins
 	st.Smashed += 1
@@ -447,15 +352,23 @@ local function smash(o: Obstacle, st: RunState, center: Vector3)
 	local midS = (o.S0 + o.S1) / 2
 	local midX = (o.X0 + o.X1) / 2
 	local base = surface(midS, midX)
-	local popPos = base + NORMAL * (o.Top + 2)
-	Effects.worldText(popPos, "+" .. Config.Commas(coins), if crit then Color3.fromRGB(255, 170, 40) else Color3.fromRGB(255, 225, 70), if crit then 80 else 60)
-	Effects.burst(base + NORMAL * math.min(o.Top, 6), Color3.fromRGB(240, 248, 255), 14 + math.floor(o.Toughness * 3), 1.6)
-	Effects.play("Smash", 0.9 + math.random() * 0.3, 0.6)
-	Effects.shake(0.35 + o.Toughness * 0.12)
+	local popPos = base + Vector3.yAxis * (math.min(o.Top, 25) + 2)
+	local color = if o.Mult >= 8 then Color3.fromRGB(120, 235, 255)
+		elseif o.Mult >= 3 then Color3.fromRGB(255, 200, 40)
+		elseif crit then Color3.fromRGB(255, 170, 40)
+		else Color3.fromRGB(255, 225, 70)
+	Effects.worldText(popPos, "+" .. Config.Commas(coins), color, if crit or o.Mult > 1 then 80 else 60)
+	Effects.burst(base + Vector3.yAxis * math.min(o.Top, 6), Color3.fromRGB(240, 248, 255), 14 + math.floor(math.min(o.Toughness, 10) * 3), 1.6)
+	Effects.play("Smash", 0.9 + math.random() * 0.3)
+	if o.Mult > 1 then
+		Effects.play("Mutation", 1.4)
+	end
+	Effects.shake(0.35 + math.min(o.Toughness, 12) * 0.12)
 	Hud.setRunCoins(st.Coins)
-	Hud.combo(math.min(st.Combo, P.MaxCombo), stats.ComboTime)
+	Hud.combo(mult, stats.ComboTime)
 	if crit then
 		Hud.critical()
+		Effects.play("Critical", 1.2)
 	end
 	breakApart(o, st, center)
 end
@@ -463,17 +376,14 @@ end
 ----------------------------------------------------------------------
 -- Public API
 ----------------------------------------------------------------------
-local stats0: Config.Stats? = nil
-
 -- Put a fresh snowball on the start pad and point the camera down the hill.
-function Runner.prepare(stats: Config.Stats, skinId: string)
-	if courseDirty then
-		Runner.resetCourse()
+function Runner.prepare(stats, skinId: string)
+	if courseDirty or (stats.Mutation == true) ~= mutationOn then
+		Runner.resetCourse(stats.Mutation)
 	end
 	if ball then
 		ball.Model:Destroy()
 	end
-	stats0 = stats
 	ball = makeBall(Config.SkinById[skinId] or Config.SkinById.Classic)
 	run = newRun(stats)
 	camPos = nil
@@ -496,8 +406,25 @@ function Runner.launch(power: number)
 	courseDirty = true
 	st.V = math.max(8, st.Stats.Launch * power)
 	Runner.State = "Rolling"
-	Effects.play("Launch", 1, 0.8)
+	Effects.play("Launch", 1)
 	Effects.shake(0.6)
+end
+
+function Runner.canTurbo(): boolean
+	return run ~= nil and Runner.State == "Rolling" and run.Time >= run.TurboUntil
+end
+
+function Runner.turbo()
+	local st = run
+	if not st or Runner.State ~= "Rolling" then
+		return
+	end
+	st.TurboUntil = st.Time + Config.Turbo.Duration
+	st.V = math.min(P.MaxSpeed + Config.Turbo.SpeedAdd, st.V + Config.Turbo.SpeedAdd)
+	st.Stopped = 0
+	Effects.play("Boost", 0.8)
+	Effects.play("Launch", 1.3)
+	Effects.shake(1.5)
 end
 
 function Runner.stop()
@@ -518,9 +445,11 @@ function Runner.stop()
 		TweenService:Create(camera, TweenInfo.new(0.4), { FieldOfView = 70 }):Play()
 	end
 	Hud.setSpeed(0)
+	-- show a fresh course in the lobby again
+	Runner.resetCourse(mutationOn)
 end
 
-local function finish(st: RunState)
+local function finish(st)
 	Runner.State = "Done"
 	Runner.OnFinish({
 		Distance = math.max(0, math.floor(st.S)),
@@ -543,6 +472,7 @@ function Runner.update(dt: number)
 	end
 	dt = math.min(dt, 1 / 20)
 	local stats = st.Stats
+	local turbo = st.Time < st.TurboUntil
 
 	if Runner.State == "Rolling" then
 		st.Time += dt
@@ -562,15 +492,15 @@ function Runner.update(dt: number)
 			if st.H <= 0 then
 				st.H = 0
 				st.VH = 0
-				Effects.play("Land", 0.8, 0.7)
+				Effects.play("Land", 0.8)
 				Effects.shake(0.8)
-				local p = surface(st.S, st.X)
-				Effects.burst(p, Color3.fromRGB(240, 248, 255), 26, 2)
+				Effects.burst(surface(st.S, st.X), Color3.fromRGB(240, 248, 255), 26, 2)
 			end
-		else
+		elseif not turbo then
 			st.V -= stats.Friction * dt
 		end
-		st.V = math.clamp(st.V, 0, P.MaxSpeed)
+		local maxSpeed = if turbo then P.MaxSpeed + Config.Turbo.SpeedAdd else P.MaxSpeed
+		st.V = math.clamp(st.V, 0, math.max(maxSpeed, st.V - 60 * dt))
 		local ds = st.V * dt
 		st.S += ds
 		if not airborne then
@@ -578,26 +508,36 @@ function Runner.update(dt: number)
 		end
 		st.Roll += ds / st.R
 
+		streamAround(st.S, 1)
+
+		local ci0 = math.max(0, math.floor((st.S - 30) / CHUNK))
+		local ci1 = math.floor((st.S + 30) / CHUNK)
+
 		-- boost pads and ramps
 		st.RampH = 0
-		for _, pad in pads do
-			local inLane = st.X + st.R * 0.5 >= pad.X0 and st.X - st.R * 0.5 <= pad.X1
-			if not st.PadsUsed[pad] and st.H <= 0 and inLane and st.S >= pad.S0 and st.S <= pad.S1 then
-				if pad.Kind == "Boost" then
-					st.PadsUsed[pad] = true
-					st.V = math.min(P.MaxSpeed, st.V + stats.Boost)
-					Effects.play("Boost", 1.1, 0.8)
-					Effects.shake(0.5)
-				elseif pad.Kind == "Ramp" then
-					-- ride up the ramp, then fly off the lip
-					local frac = (st.S - pad.S0) / math.max(1, pad.S1 - pad.S0)
-					st.RampH = frac * pad.Top
-					if frac >= 0.92 then
-						st.PadsUsed[pad] = true
-						st.H = math.max(0.01, st.RampH)
-						st.RampH = 0
-						st.VH = P.RampLift * stats.Air + st.V * 0.1
-						Effects.play("Launch", 1.2, 0.7)
+		for ci = ci0, ci1 do
+			local chunk = chunks[ci]
+			if chunk then
+				for _, pad in chunk.Pads do
+					local inLane = st.X + st.R * 0.5 >= pad.X0 and st.X - st.R * 0.5 <= pad.X1
+					if not pad.Used and st.H <= 0 and inLane and st.S >= pad.S0 and st.S <= pad.S1 then
+						if pad.Kind == "Boost" then
+							pad.Used = true
+							st.V = math.min(maxSpeed, st.V + stats.Boost)
+							Effects.play("Boost", 1.1)
+							Effects.shake(0.5)
+						elseif pad.Kind == "Ramp" then
+							-- ride up the ramp, then fly off the lip
+							local frac = (st.S - pad.S0) / math.max(1, pad.S1 - pad.S0)
+							st.RampH = frac * pad.Top
+							if frac >= 0.92 then
+								pad.Used = true
+								st.H = math.max(0.01, st.RampH)
+								st.RampH = 0
+								st.VH = P.RampLift * stats.Air + st.V * 0.1
+								Effects.play("Launch", 1.2)
+							end
+						end
 					end
 				end
 			end
@@ -606,53 +546,39 @@ function Runner.update(dt: number)
 		local point, up = surface(st.S, st.X)
 		local center = point + up * (st.R + st.H + st.RampH)
 
-		-- smash obstacles
-		while st.FirstObstacle <= #obstacles and obstacles[st.FirstObstacle].S1 < st.S - 60 do
-			st.FirstObstacle += 1
-		end
-		for i = st.FirstObstacle, #obstacles do
-			local o = obstacles[i]
-			if o.S0 > st.S + st.R then
-				break
-			end
-			if not o.Smashed and o.S1 > st.S - st.R and st.X + st.R * 0.85 > o.X0 and st.X - st.R * 0.85 < o.X1 and st.H < o.Top then
-				smash(o, st, center)
-			end
-		end
-
-		-- coins
-		while st.FirstPickup <= #pickups and pickups[st.FirstPickup].S < st.S - 30 do
-			st.FirstPickup += 1
-		end
-		for i = st.FirstPickup, #pickups do
-			local p = pickups[i]
-			if p.S > st.S + 220 then
-				break
-			end
-			local part = p.Part
-			if not p.Taken and part then
-				if math.abs(p.S - st.S) < st.R + 1.5 and math.abs(p.X - st.X) < st.R + 1.5 and part.Position.Y < center.Y + st.R + 3 then
-					p.Taken = true
-					local value = math.floor(P.PickupValue * stats.CoinMult + 0.5)
-					st.Coins += value
-					Hud.setRunCoins(st.Coins)
-					Effects.play("Coin", 1.3 + math.random() * 0.3, 0.4)
-					TweenService:Create(part, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-						Size = Vector3.new(0.1, 0.1, 0.1),
-						CFrame = part.CFrame + Vector3.yAxis * 4,
-					}):Play()
-					Debris:AddItem(part, 0.3)
-					p.Part = nil
+		-- smash obstacles and grab coins
+		for ci = math.max(0, math.floor((st.S - st.R - 20) / CHUNK)), math.floor((st.S + st.R + 20) / CHUNK) do
+			local chunk = chunks[ci]
+			if chunk then
+				for _, o in chunk.Obstacles do
+					if o.S0 > st.S + st.R then
+						break
+					end
+					if not o.Smashed and o.S1 > st.S - st.R and st.X + st.R * 0.85 > o.X0 and st.X - st.R * 0.85 < o.X1 and st.H < o.Top then
+						smash(o, st, center)
+					end
+				end
+				for _, p in chunk.Pickups do
+					local part = p.Part
+					if not p.Taken and part and math.abs(p.S - st.S) < st.R + 1.5 and math.abs(p.X - st.X) < st.R + 1.5 and part.Position.Y < center.Y + st.R + 3 then
+						p.Taken = true
+						local value = math.floor(P.PickupValue * stats.CoinMult + 0.5)
+						st.Coins += value
+						Hud.setRunCoins(st.Coins)
+						Effects.play("Coin", 1.3 + math.random() * 0.3, 0.4)
+						TweenService:Create(part, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+							Size = Vector3.new(0.1, 0.1, 0.1),
+							CFrame = part.CFrame + Vector3.yAxis * 4,
+						}):Play()
+						Debris:AddItem(part, 0.3)
+						p.Part = nil
+					end
 				end
 			end
 		end
 
-		-- end of the run
-		if st.S >= LENGTH - st.R - 2 then
-			st.S = LENGTH - st.R - 2
-			st.V = 0
-		end
-		if st.V <= P.StopSpeed and st.H <= 0 then
+		-- end of the run (the mountain never ends, you just run out of speed)
+		if st.V <= P.StopSpeed and st.H <= 0 and not turbo then
 			st.Stopped += dt
 			st.V = 0
 			if st.Stopped > 0.35 then
@@ -660,6 +586,8 @@ function Runner.update(dt: number)
 			end
 		elseif st.Time > P.MaxRunTime then
 			finish(st)
+		else
+			st.Stopped = 0
 		end
 
 		Hud.setDistance(math.max(0, st.S))
@@ -669,10 +597,15 @@ function Runner.update(dt: number)
 
 	-- spin nearby coins
 	spinT += dt
-	for i = st.FirstPickup, math.min(#pickups, st.FirstPickup + 40) do
-		local p = pickups[i]
-		if p.Part and not p.Taken then
-			p.Part.CFrame = p.Base * CFrame.Angles(0, spinT * 3, 0)
+	local ci = math.max(0, math.floor(st.S / CHUNK))
+	for i = ci, ci + 1 do
+		local chunk = chunks[i]
+		if chunk then
+			for _, p in chunk.Pickups do
+				if p.Part and not p.Taken then
+					p.Part.CFrame = p.Base * CFrame.Angles(0, spinT * 3, 0)
+				end
+			end
 		end
 	end
 
@@ -683,6 +616,10 @@ function Runner.update(dt: number)
 	local ballCF = CFrame.new(center) * rot
 	b.Body.Size = Vector3.one * st.R * 2
 	b.Body.CFrame = ballCF
+	if b.Skin.Rainbow then
+		b.Body.Color = Color3.fromHSV((os.clock() * 0.25) % 1, 0.75, 1)
+		b.Trail.Color = ColorSequence.new(b.Body.Color)
+	end
 	for i, c in b.Clumps do
 		c.Size = Vector3.one * st.R * 0.55
 		c.CFrame = ballCF * CFrame.new(CLUMP_DIRS[i] * st.R * 0.82)
@@ -695,6 +632,7 @@ function Runner.update(dt: number)
 	end
 	b.Spray.Rate = if Runner.State == "Rolling" and st.H <= 0 then math.clamp(st.V * 0.8, 0, 90) else 0
 	b.Trail.Enabled = Runner.State == "Rolling" and st.H <= 0.5
+	b.Flames.Rate = if turbo and Runner.State == "Rolling" then 120 else 0
 
 	-- camera
 	local camera = Workspace.CurrentCamera
@@ -714,13 +652,9 @@ function Runner.update(dt: number)
 		camLook = cl
 		camera.CameraType = Enum.CameraType.Scriptable
 		camera.CFrame = CFrame.lookAt(cp, cl) * Effects.shakeOffset(dt)
-		local fov = 70 + math.clamp((st.V - 40) * 0.18, 0, 24)
+		local fov = 70 + math.clamp((st.V - 40) * 0.18, 0, 30)
 		camera.FieldOfView += (fov - camera.FieldOfView) * (1 - math.exp(-dt * 4))
 	end
-end
-
-function Runner.getStats(): Config.Stats?
-	return stats0
 end
 
 return Runner

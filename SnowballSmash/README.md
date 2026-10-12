@@ -1,6 +1,6 @@
 # ❄ Snowball Smash (Roblox)
 
-Charge your push, launch a snowball down a giant mountain, steer it into snowmen,
+Charge your push, launch a snowball down an endless mountain, steer it into snowmen,
 trees, ice walls and log cabins, and watch it **grow bigger with every stud it rolls**.
 Bigger snowball = harder smashes, more coins and longer combos. Spend the coins in a hexagon
 upgrade tree, unlock new ball skins, then rebirth for a permanent coin bonus.
@@ -21,6 +21,7 @@ upgrade tree, unlock new ball skins, then rebirth for a permanent coin bonus.
 | Start a run | **Roll!** button, **E**, or walk onto the blue pad | Roll! button | — |
 | Charge power | Hold **click** or **Space**, release to launch | Hold anywhere | Hold **A** |
 | Steer | **A / D** or arrow keys | Touch left / right half | Left stick |
+| Turbo (mid-run) | **T** | TURBO button | **Y** |
 | Upgrade tree | **Upgrade** button or **U** | Upgrade button | — |
 | After a run | **R** retry, **Q** return | Buttons | — |
 
@@ -31,30 +32,91 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
 * **Run:** the snowball is simulated on the client along the slope, so it rolls smoothly with no
   physics jitter. It grows as it rolls. Each smash costs speed (less when you're big),
   builds a combo (up to x5) and can roll a CRITICAL! for double coins. Boost pads add speed;
-  ramps launch you over obstacles. The run ends when you stop or hit the Snow Fort at the bottom.
+  ramps launch you over obstacles.
+* **Endless mountain:** the course is generated in chunks as you roll, and the same seed is used
+  on every client and the server. Obstacles get tougher (and pay more) the further down you go,
+  with a Snow Fort gate every 1,500 studs and a distance sign every 500. Nobody can reach the end.
 * **Every player smashes their own copy** of the course, so players never get in each other's way.
 * **UI** (all built in code, see `src/client`): a chunky cartoon style like the reference video.
   Studded buttons sink when pressed and bounce on hover, wooden panels pop open with a blurred
   background, coins count up, and the hex upgrade tree pans and zooms smoothly. It all scales
   to any screen size.
-* **Upgrade tree:** 11 branches and 45 upgrades: Push Power, Snow Pack, Smash Power,
-  Coin Bonus, Combo Time, Carving, Slick Wax, Mega Ball, Lucky Flake, Turbo Pads and Big Air.
-* **Shop:** 6 snowball skins, each with a coin bonus. **Rebirth:** reset for +50% coins per rebirth.
-* **Settings:** Music, SFX, Camera Shake, Speed Lines, Hints (saved per player).
-* **Stats:** runs, best score / distance / combo, total smashed, rebirths.
-* **Server:** DataStore saving, server-side purchases, and run results checked against
-  what the course could actually pay out.
+* **Upgrade tree:** 11 branches and 45 upgrades.
+* **Robux shop:** 6 game passes and 11 developer products (see below), plus coin skins.
+* **Rebirth:** reset for +50% coins per rebirth.
+* **Admin panel:** announcements, server storms, and giving coins, turbos or game passes.
+* **Settings / Stats**, DataStore saving, and server-side checks on every purchase and run result.
+
+## Robux shop: put your IDs in `ReplicatedStorage.Shared.Monetization`
+
+Create the passes and products on the Creator Dashboard (*your game → Monetization →
+Passes / Developer Products*), then paste each ID over the `Id = 0` next to it.
+Prices shown in the shop load from Roblox automatically. The `Price` in the file is only a fallback.
+An item that still has `Id = 0` says "Coming soon" when clicked.
+
+| Game pass | Suggested price | What it does |
+|---|---|---|
+| 👑 VIP | 349 R$ | `[VIP]` chat tag, 👑 VIP name tag over your head, **+25% coins** |
+| 💰 2x Coins | 399 R$ | Double coins forever |
+| 🎯 Perfect Push | 199 R$ | Power bar is always MAX |
+| ⛄ Mega Start | 249 R$ | Start every run 2 sizes bigger |
+| 🍀 Lucky Charm | 179 R$ | +10% critical chance |
+| 🌈 Rainbow Ball | 149 R$ | Exclusive colour-shifting skin, +50% coins |
+
+| Developer product | Suggested price | What it does |
+|---|---|---|
+| 🚀 Turbo Boost x5 | **99 R$** | 5 Turbos. Press **T** (or the TURBO button) mid-run for +90 speed and 3 s of unstoppable smashing |
+| 🔥 Turbo Boost x20 | 299 R$ | 20 Turbos |
+| ✨ Pile of Coins | 25 R$ | +2,500 coins |
+| 💰 Bag of Coins | 99 R$ | +15,000 coins |
+| 📦 Chest of Coins | 299 R$ | +60,000 coins |
+| 🏦 Vault of Coins | 799 R$ | +250,000 coins |
+| ⏱️ x2 Coins (15 min) | 49 R$ | Personal coin boost |
+| ⌛ x2 Coins (1 hour) | 149 R$ | Personal coin boost |
+| 🌪️ Server Coin Storm | 199 R$ | x2 coins for **everyone** in the server for 10 min |
+
+Purchases are granted by `ProcessReceipt` on the server and recorded so they are never granted twice.
+Pressing TURBO with 0 turbos opens the purchase prompt.
+To test perks in Studio, set `Monetization.StudioOwnsAllPasses = true`.
+
+## Sounds and music: `ReplicatedStorage.Shared.Sounds`
+
+* `Sounds.Music`: background music playlist, e.g. `{ "rbxassetid://123", "rbxassetid://456" }`
+* `Sounds.EventMusic`: plays while a storm is running (optional)
+* `Sounds.UI`: Click, Hover, Open, Close, Purchase, Error, Notify, Toggle
+* `Sounds.Game`: Launch, Smash, Land, Boost, Coin, Critical, MaxPower, NewBest, Mutation
+* `MusicVolume`, `SfxVolume`, `UIVolume`
+
+Use `""` to turn a sound off. The defaults are Roblox's built-in sounds; there is no music
+until you add an ID.
+
+## Admin panel: `ServerScriptService.AdminConfig`
+
+Put your Roblox user ID in `AdminConfig.Admins`. The game's owner is always an admin, and in
+Studio everyone is admin so you can test it. Admins get a 🛡️ **Admin** tile in the menu, an
+`[ADMIN]` chat tag and a name tag. From the panel they can:
+
+* **📢 Announce:** a big banner and a chat message for everyone (text goes through Roblox's filter).
+* **🌪️ Start storms** for 1/5/15/30 minutes:
+  * x2 Coins Storm and x3 Coins Storm.
+  * **Mutation Storm:** obstacles turn ✨Golden (x3) or 💎Diamond (x8).
+  * Mega Growth, Blizzard Speed and Lucky Storm.
+  * Storms stack, show a countdown on everyone's screen and bring heavy snowfall. You can stop all of them.
+* **🎁 Give coins or turbos** to yourself (leave the name empty) or any player in the server.
+* **👑 Give or remove any game pass** for yourself or others. Given passes are saved.
+
+Every admin action is checked on the server, so non-admins can't use the remote.
 
 ## Tweaking
 
-Everything you'd want to balance lives in `ReplicatedStorage.Shared.Config`
-(`src/shared/Config.luau`): launch speed, friction, growth, upgrade costs and effects, skins,
-rebirth price, and sounds. Background music is off by default. Set `Config.Sounds.Music` to an
-audio asset id you own (e.g. `"rbxassetid://123"`) to add some.
-
-You can also edit the map directly in Studio. Anything inside `Workspace.Course.Smashables`
-becomes smashable. Give it the attributes `Toughness` (number) and `Coins` (number).
-Parts in `Workspace.Course.Pads` with a `PadType` attribute of `Boost` or `Ramp` work as pads.
+* **Gameplay balance** (`ReplicatedStorage.Shared.Config`): launch speed, friction, growth,
+  upgrade costs and effects, skins, rebirth, turbo strength, storm definitions and mutation odds.
+* **The course** (`ReplicatedStorage.Shared.CourseGen`): slope angle and width, how fast
+  obstacles get tougher (`ToughScale`) and richer (`CoinScale`), gate spacing, and which obstacles
+  appear at which distance. The obstacle models are built in `SnowballClient.CourseBuilder`.
+* **The lobby** (`Workspace.Lobby`) is normal parts you can edit in Studio.
+  `Workspace.Course.Preview` only shows the start of the slope in the editor and is removed when
+  the game runs.
 
 ## Rebuilding from source
 
@@ -70,7 +132,8 @@ This rewrites `SnowballSmash.rbxl` and `SnowballSmash.rbxlx`.
 
 | File | Goes to |
 |---|---|
-| `src/shared/Config.luau` | `ReplicatedStorage.Shared.Config` |
+| `src/shared/*.luau` | `ReplicatedStorage.Shared.*` (Config, Monetization, Sounds, CourseGen) |
 | `src/server/GameServer.server.luau` | `ServerScriptService.GameServer` |
+| `src/server/AdminConfig.luau` | `ServerScriptService.AdminConfig` |
 | `src/client/Main.client.luau` | `StarterPlayerScripts.SnowballClient` (LocalScript) |
 | `src/client/*.luau` (the rest) | ModuleScripts inside `SnowballClient` |

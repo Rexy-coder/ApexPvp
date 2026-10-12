@@ -18,6 +18,7 @@ local new = UIKit.new
 local Hud = {}
 
 Hud.Callbacks = {
+	Turbo = function() end,
 	Roll = function() end,
 	Upgrade = function() end,
 	Menu = function(_name: string) end,
@@ -166,11 +167,11 @@ end
 local menu = new("Frame", {
 	Name = "Menu",
 	BackgroundTransparency = 1,
-	Size = UDim2.fromOffset(196, 300),
+	Size = UDim2.fromOffset(196, 390),
 	AnchorPoint = Vector2.new(0, 0.5),
 	Parent = root,
 })
-makeSlider("Menu", menu, UDim2.new(0, 16, 0.5, -20), UDim2.new(0, -240, 0.5, -20))
+makeSlider("Menu", menu, UDim2.new(0, 16, 0.5, 10), UDim2.new(0, -240, 0.5, 10))
 
 local badges: { [string]: { Alert: Frame, Soon: Frame? } } = {}
 
@@ -181,7 +182,9 @@ local MENU_ITEMS = {
 	{ Name = "Index", Icon = "📘", Col = 1, Row = 1, Soon = true },
 	{ Name = "Stats", Icon = "📊", Col = 0, Row = 2 },
 	{ Name = "Settings", Icon = "⚙️", Col = 1, Row = 2 },
+	{ Name = "Admin", Icon = "🛡️", Col = 0, Row = 3, AdminOnly = true },
 }
+local adminTile: Frame? = nil
 
 for _, item in MENU_ITEMS do
 	local tile = new("Frame", {
@@ -190,8 +193,12 @@ for _, item in MENU_ITEMS do
 		Position = UDim2.fromOffset(item.Col * 100, item.Row * 100),
 		BackgroundColor3 = C.Slate,
 		BackgroundTransparency = 0.25,
+		Visible = not item.AdminOnly,
 		Parent = menu,
 	})
+	if item.AdminOnly then
+		adminTile = tile
+	end
 	UIKit.corner(tile, 14)
 	UIKit.stroke(tile, 3, C.Outline, 0.1)
 	local tileScale = new("UIScale", { Parent = tile })
@@ -265,6 +272,12 @@ for _, item in MENU_ITEMS do
 		Effects.play("Click", 1.1)
 		Hud.Callbacks.Menu(item.Name)
 	end)
+end
+
+function Hud.setAdmin(on: boolean)
+	if adminTile then
+		adminTile.Visible = on
+	end
 end
 
 -- Gently bob the "!" badges so they catch the eye
@@ -578,7 +591,7 @@ function Hud.setPower(p: number, charging: boolean)
 	if isMax and not wasMax then
 		maxPower.Visible = true
 		UIKit.pop(maxPower, 1.5)
-		Effects.play("Coin", 1.6, 0.3)
+		Effects.play("MaxPower", 1.6, 0.6)
 	elseif not isMax and wasMax then
 		maxPower.Visible = false
 	end
@@ -658,6 +671,213 @@ function Hud.toast(text: string, color: Color3?)
 end
 
 ----------------------------------------------------------------------
+-- Active boosts / storms (right side, with countdowns)
+----------------------------------------------------------------------
+local boostList = new("Frame", {
+	Name = "Boosts",
+	BackgroundTransparency = 1,
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -16, 0.5, 20),
+	Size = UDim2.fromOffset(250, 320),
+	Parent = root,
+})
+new("UIListLayout", {
+	Padding = UDim.new(0, 8),
+	HorizontalAlignment = Enum.HorizontalAlignment.Right,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	Parent = boostList,
+})
+
+type BoostEntry = { Key: string, Icon: string, Text: string, Color: Color3, EndsAt: number? }
+local boostRows: { [string]: { Frame: Frame, Label: TextLabel, Entry: BoostEntry } } = {}
+
+local function formatTime(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	if seconds >= 3600 then
+		return string.format("%d:%02d:%02d", seconds // 3600, (seconds % 3600) // 60, seconds % 60)
+	end
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+-- entries: list of { Key, Icon, Text, Color, EndsAt? (server time) }
+function Hud.setBoosts(entries: { BoostEntry })
+	local keep = {}
+	for i, e in entries do
+		keep[e.Key] = true
+		local row = boostRows[e.Key]
+		if not row then
+			local f = new("Frame", {
+				BackgroundColor3 = e.Color,
+				Size = UDim2.fromOffset(0, 42),
+				AutomaticSize = Enum.AutomaticSize.X,
+				Parent = boostList,
+			})
+			UIKit.corner(f, 12)
+			UIKit.stroke(f, 3)
+			UIKit.gradient(f, { Color3.new(1, 1, 1), Color3.new(0.75, 0.75, 0.75) }, 90)
+			new("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 12), Parent = f })
+			new("UIListLayout", {
+				FillDirection = Enum.FillDirection.Horizontal,
+				VerticalAlignment = Enum.VerticalAlignment.Center,
+				Padding = UDim.new(0, 6),
+				Parent = f,
+			})
+			UIKit.label({ Text = e.Icon, Size = UDim2.fromOffset(30, 30), Stroke = 0, LayoutOrder = 1, Parent = f })
+			local label = UIKit.label({
+				Text = e.Text,
+				TextScaled = false,
+				TextSize = 19,
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, 30),
+				Stroke = 2.5,
+				LayoutOrder = 2,
+				Parent = f,
+			})
+			row = { Frame = f, Label = label, Entry = e }
+			boostRows[e.Key] = row
+			UIKit.pop(f, 0.4)
+		end
+		row.Entry = e
+		row.Frame.LayoutOrder = i
+		row.Frame.BackgroundColor3 = e.Color
+	end
+	for key, row in boostRows do
+		if not keep[key] then
+			row.Frame:Destroy()
+			boostRows[key] = nil
+		end
+	end
+end
+
+RunService.RenderStepped:Connect(function()
+	local t = Workspace:GetServerTimeNow()
+	for _, row in boostRows do
+		local e = row.Entry
+		row.Label.Text = if e.EndsAt then e.Text .. "  " .. formatTime(e.EndsAt - t) else e.Text
+	end
+end)
+
+----------------------------------------------------------------------
+-- Announcement banner (admin announcements, storms, purchases)
+----------------------------------------------------------------------
+local banner = new("Frame", {
+	Name = "Announcement",
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, -200),
+	Size = UDim2.fromOffset(620, 118),
+	BackgroundTransparency = 1,
+	Visible = false,
+	ZIndex = 40,
+	Parent = root,
+})
+local bannerBody = new("Frame", {
+	BackgroundColor3 = C.Wood,
+	Size = UDim2.new(1, 0, 1, -24),
+	Position = UDim2.fromOffset(0, 24),
+	Parent = banner,
+})
+UIKit.corner(bannerBody, 16)
+UIKit.stroke(bannerBody, 4)
+local bannerHead = new("Frame", {
+	BackgroundColor3 = C.Yellow,
+	Size = UDim2.fromOffset(300, 44),
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 0),
+	Parent = banner,
+})
+UIKit.corner(bannerHead, 12)
+UIKit.stroke(bannerHead, 3.5)
+local bannerTitle = UIKit.label({ Text = "📢 ANNOUNCEMENT", Size = UDim2.new(1, -20, 1, -12), Position = UDim2.fromOffset(10, 6), Stroke = 3, Parent = bannerHead })
+local bannerText = UIKit.label({
+	Text = "",
+	TextWrapped = true,
+	Size = UDim2.new(1, -40, 0, 54),
+	Position = UDim2.fromOffset(20, 50),
+	Stroke = 2.5,
+	MaxTextSize = 30,
+	Parent = banner,
+})
+local bannerToken = 0
+
+function Hud.announce(title: string, text: string, color: Color3?)
+	bannerToken += 1
+	local token = bannerToken
+	bannerTitle.Text = title
+	bannerText.Text = text
+	bannerHead.BackgroundColor3 = color or C.Yellow
+	banner.Visible = true
+	banner.Position = UDim2.new(0.5, 0, 0, -200)
+	UIKit.tween(banner, 0.5, { Position = UDim2.new(0.5, 0, 0, 96) }, Enum.EasingStyle.Back)
+	task.delay(6, function()
+		if token ~= bannerToken then
+			return
+		end
+		local t = UIKit.tween(banner, 0.35, { Position = UDim2.new(0.5, 0, 0, -200) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		t.Completed:Connect(function()
+			if token == bannerToken then
+				banner.Visible = false
+			end
+		end)
+	end)
+end
+
+----------------------------------------------------------------------
+-- TURBO button (bottom right during a run, key T)
+----------------------------------------------------------------------
+local turboHolder = new("Frame", {
+	Name = "Turbo",
+	BackgroundTransparency = 1,
+	Size = UDim2.fromOffset(150, 150),
+	AnchorPoint = Vector2.new(1, 1),
+	Parent = root,
+})
+makeSlider("Turbo", turboHolder, UDim2.new(1, -26, 1, -26), UDim2.new(1, 200, 1, -26))
+local turboButton = UIKit.button({
+	Size = UDim2.fromOffset(150, 150),
+	Color = C.Red,
+	DarkColor = C.RedDark,
+	Text = "TURBO",
+	Key = "T",
+	Corner = 75,
+	Parent = turboHolder,
+	OnClick = function()
+		Hud.Callbacks.Turbo()
+	end,
+})
+turboButton.Label.Size = UDim2.new(1, -24, 0, 34)
+turboButton.Label.Position = UDim2.new(0.5, 0, 0.62, 0)
+turboButton.Label.AnchorPoint = Vector2.new(0.5, 0.5)
+turboButton.Label.TextXAlignment = Enum.TextXAlignment.Center
+UIKit.label({ Text = "🚀", Size = UDim2.fromOffset(56, 56), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.32, 0), Stroke = 0, Parent = turboButton.Face })
+local turboCount = new("Frame", {
+	BackgroundColor3 = C.Yellow,
+	Size = UDim2.fromOffset(54, 34),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(1, -18, 0, 18),
+	ZIndex = 10,
+	Parent = turboHolder,
+})
+UIKit.corner(turboCount, 10)
+UIKit.stroke(turboCount, 3)
+local turboCountLabel = UIKit.label({ Text = "x0", Size = UDim2.new(1, -8, 1, -6), Position = UDim2.fromOffset(4, 3), Stroke = 2.5, Parent = turboCount })
+
+function Hud.setTurbos(n: number)
+	turboCountLabel.Text = if n > 0 then "x" .. n else "+"
+	if n > 0 then
+		turboButton.SetColors(C.Red, C.RedDark)
+		turboButton.SetText("TURBO")
+	else
+		turboButton.SetColors(C.Grey, C.GreyDark)
+		turboButton.SetText("GET")
+	end
+end
+
+function Hud.turboFired()
+	UIKit.pop(turboHolder, 0.8)
+end
+
+----------------------------------------------------------------------
 -- Modes
 ----------------------------------------------------------------------
 Hud.Mode = "Idle"
@@ -672,6 +892,8 @@ function Hud.setMode(mode: string)
 	slide("Distance", mode == "Rolling" or mode == "Result")
 	slide("Speed", mode == "Rolling")
 	slide("Hint", mode == "Rolling" and Effects.Settings.Hints)
+	slide("Turbo", mode == "Rolling")
+	boostList.Visible = mode ~= "Tree"
 	if mode ~= "Charge" then
 		maxPower.Visible = false
 		wasMax = false

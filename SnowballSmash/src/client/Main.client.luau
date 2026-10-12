@@ -1,21 +1,27 @@
 --!nonstrict
--- Snowball Smash: client entry point. Wires the HUD, menus, upgrade tree and
--- the run together and talks to the server.
+-- Snowball Smash: client entry point. Wires the HUD, menus, shop, admin panel,
+-- upgrade tree and the run together and talks to the server.
+
+if not game:IsLoaded() then
+	game.Loaded:Wait()
+end
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local TextChatService = game:GetService("TextChatService")
 local Workspace = game:GetService("Workspace")
 
-if not game:IsLoaded() then
-	game.Loaded:Wait()
-end
-
 local player = Players.LocalPlayer
+local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local GameState = ReplicatedStorage:WaitForChild("GameState")
 
+local Config = require(Shared:WaitForChild("Config"))
+local Monetization = require(Shared:WaitForChild("Monetization"))
 local UIKit = require(script:WaitForChild("UIKit"))
 local Effects = require(script:WaitForChild("Effects"))
 local Hud = require(script:WaitForChild("Hud"))
@@ -33,13 +39,30 @@ local BuyUpgrade = Remotes:WaitForChild("BuyUpgrade") :: RemoteFunction
 local BuySkin = Remotes:WaitForChild("BuySkin") :: RemoteFunction
 local DoRebirth = Remotes:WaitForChild("Rebirth") :: RemoteFunction
 local SetSetting = Remotes:WaitForChild("SetSetting") :: RemoteEvent
+local UseTurbo = Remotes:WaitForChild("UseTurbo") :: RemoteFunction
+local AdminAction = Remotes:WaitForChild("AdminAction") :: RemoteFunction
+local Notify = Remotes:WaitForChild("Notify") :: RemoteEvent
+
+local function serverNow(): number
+	return Workspace:GetServerTimeNow()
+end
+
+local function hasPass(key: string): boolean
+	return player:GetAttribute("Pass_" .. key) == true
+end
+
+local function errorToast(text: string)
+	Hud.toast(text, C.Red)
+	Effects.play("Error", 1)
+end
 
 ----------------------------------------------------------------------
 -- Player data
 ----------------------------------------------------------------------
-local data: any = nil
+local data = nil
+local refreshBoosts = function() end
 
-local function apply(newData: any)
+local function apply(newData)
 	if type(newData) ~= "table" then
 		return
 	end
@@ -50,12 +73,14 @@ local function apply(newData: any)
 	end
 	Hud.setCoins(newData.Coins, first)
 	Hud.setBest(newData.BestEarn)
+	Hud.setTurbos(newData.Turbos or 0)
 	Panels.refresh(newData)
 	UpgradeTree.refresh(newData)
 	Hud.setAlert("Upgrades", UpgradeTree.anyAffordable(newData))
 	Hud.setAlert("Shop", Panels.anySkinAffordable(newData))
 	Hud.setAlert("Rebirth", Panels.canRebirth(newData))
 	Effects.applyMusic()
+	refreshBoosts()
 end
 
 DataChanged.OnClientEvent:Connect(apply)
@@ -64,13 +89,196 @@ task.spawn(function()
 end)
 
 ----------------------------------------------------------------------
+-- Game passes (owned / given by an admin) come in as player attributes
+----------------------------------------------------------------------
+local function refreshPasses()
+	local owned = {}
+	for _, pass in Monetization.Passes do
+		owned[pass.Key] = hasPass(pass.Key)
+	end
+	Panels.setPasses(owned)
+	Hud.setAdmin(player:GetAttribute("IsAdmin") == true)
+	refreshBoosts()
+end
+player.AttributeChanged:Connect(function(name)
+	if string.sub(name, 1, 5) == "Pass_" or name == "IsAdmin" then
+		refreshPasses()
+	end
+end)
+
+-- real Robux prices from Roblox (falls back to the price in Monetization)
+for _, pass in Monetization.Passes do
+	if pass.Id ~= 0 then
+		task.spawn(function()
+			local ok, info = pcall(function()
+				return MarketplaceService:GetProductInfo(pass.Id, Enum.InfoType.GamePass)
+			end)
+			if ok and info and info.PriceInRobux then
+				Panels.setRobuxPrice(pass.Key, info.PriceInRobux)
+			end
+		end)
+	end
+end
+for _, product in Monetization.Products do
+	if product.Id ~= 0 then
+		task.spawn(function()
+			local ok, info = pcall(function()
+				return MarketplaceService:GetProductInfo(product.Id, Enum.InfoType.Product)
+			end)
+			if ok and info and info.PriceInRobux then
+				Panels.setRobuxPrice(product.Key, info.PriceInRobux)
+			end
+		end)
+	end
+end
+
+local function buyRobux(kind: string, key: string)
+	local item = if kind == "Pass" then Monetization.PassByKey[key] else Monetization.ProductByKey[key]
+	if not item then
+		return
+	end
+	if kind == "Pass" and hasPass(key) then
+		Hud.toast("You already own " .. item.Name .. "!", C.Purple)
+		return
+	end
+	if item.Id == 0 then
+		errorToast("Coming soon! (add its ID in Shared.Monetization)")
+		return
+	end
+	if kind == "Pass" then
+		MarketplaceService:PromptGamePassPurchase(player, item.Id)
+	else
+		MarketplaceService:PromptProductPurchase(player, item.Id)
+	end
+end
+Panels.Callbacks.BuyRobux = buyRobux
+
+----------------------------------------------------------------------
+-- Chat tags: [ADMIN] and [VIP]
+----------------------------------------------------------------------
+TextChatService.OnIncomingMessage = function(message: TextChatMessage)
+	local props = Instance.new("TextChatMessageProperties")
+	local source = message.TextSource
+	if source then
+		local speaker = Players:GetPlayerByUserId(source.UserId)
+		if speaker then
+			local tags = ""
+			if speaker:GetAttribute("IsAdmin") then
+				tags ..= '<font color="#FF5A5A">[ADMIN]</font> '
+			end
+			if speaker:GetAttribute("Pass_VIP") then
+				tags ..= '<font color="#FFD23C">[VIP]</font> '
+			end
+			if tags ~= "" then
+				props.PrefixText = tags .. message.PrefixText
+			end
+		end
+	end
+	return props
+end
+
+local function systemChat(text: string)
+	pcall(function()
+		local channels = TextChatService:FindFirstChild("TextChannels")
+		local general = channels and channels:FindFirstChild("RBXGeneral")
+		if general then
+			general:DisplaySystemMessage(text)
+		end
+	end)
+end
+
+----------------------------------------------------------------------
+-- Boosts, storms and the side list
+----------------------------------------------------------------------
+local function activeEvents()
+	local list = {}
+	local t = serverNow()
+	for _, e in Config.Events do
+		local ends = GameState:GetAttribute("Event_" .. e.Id)
+		if type(ends) == "number" and ends > t then
+			table.insert(list, { Def = e, EndsAt = ends })
+		end
+	end
+	return list
+end
+
+refreshBoosts = function()
+	local entries = {}
+	if hasPass("VIP") then
+		table.insert(entries, { Key = "VIP", Icon = "👑", Text = "VIP +25%", Color = Color3.fromRGB(255, 200, 40) })
+	end
+	if hasPass("DoubleCoins") then
+		table.insert(entries, { Key = "Double", Icon = "💰", Text = "2x Coins", Color = Color3.fromRGB(90, 220, 70) })
+	end
+	if data and (data.BoostEnds or 0) > serverNow() then
+		table.insert(entries, { Key = "Boost", Icon = "⏱️", Text = "x2 Coins", Color = Color3.fromRGB(150, 96, 245), EndsAt = data.BoostEnds })
+	end
+	local events = activeEvents()
+	for _, ev in events do
+		table.insert(entries, { Key = "Event_" .. ev.Def.Id, Icon = ev.Def.Icon, Text = ev.Def.Name, Color = ev.Def.Color, EndsAt = ev.EndsAt })
+	end
+	Hud.setBoosts(entries)
+
+	local mutation = false
+	local stormColor = nil
+	for _, ev in events do
+		stormColor = stormColor or ev.Def.Color
+		if ev.Def.Mutation then
+			mutation = true
+		end
+	end
+	Effects.setStorm(#events > 0, stormColor)
+	Effects.setEventMusic(#events > 0)
+	Runner.setMutation(mutation)
+end
+
+GameState.AttributeChanged:Connect(function()
+	refreshBoosts()
+end)
+task.spawn(function()
+	while true do
+		task.wait(1)
+		refreshBoosts()
+	end
+end)
+
+Notify.OnClientEvent:Connect(function(kind: string, payload)
+	payload = payload or {}
+	if kind == "Announcement" then
+		Hud.announce("📢 " .. tostring(payload.From), tostring(payload.Text), C.Yellow)
+		systemChat("[ANNOUNCEMENT] " .. tostring(payload.Text))
+		Effects.play("Notify", 0.9)
+	elseif kind == "EventStarted" then
+		local def = Config.EventById[payload.Id]
+		if def then
+			Hud.announce(def.Icon .. " " .. string.upper(def.Name), def.Desc .. "  (" .. tostring(payload.Minutes) .. " min, by " .. tostring(payload.By) .. ")", def.Color)
+			systemChat(def.Name .. " started by " .. tostring(payload.By) .. "!")
+			Effects.play("Notify", 1.2)
+		end
+		refreshBoosts()
+	elseif kind == "EventEnded" then
+		local def = Config.EventById[payload.Id]
+		if def then
+			Hud.toast(def.Name .. " is over", C.Slate)
+		end
+		refreshBoosts()
+	elseif kind == "Purchased" then
+		Hud.toast("Thank you! " .. tostring(payload.Icon or "") .. " " .. tostring(payload.Name) .. " received!", C.Green)
+		Effects.play("Purchase", 1.2)
+	elseif kind == "Gift" then
+		Hud.announce("🎁 GIFT", tostring(payload.Text), C.Green)
+		Effects.play("Purchase", 1.3)
+	end
+end)
+
+----------------------------------------------------------------------
 -- Freeze the character while the snowball is out
 ----------------------------------------------------------------------
-local controls: any = nil
+local controls = nil
 task.spawn(function()
 	local ok, result = pcall(function()
 		local module = player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule", 10)
-		return (require(module :: ModuleScript) :: any):GetControls()
+		return (require :: any)(module):GetControls()
 	end)
 	if ok then
 		controls = result
@@ -88,7 +296,7 @@ local function freeze(on: boolean)
 		end
 	end
 	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if root then
 		root.Anchored = on
 	end
@@ -96,7 +304,7 @@ end
 
 player.CharacterAdded:Connect(function(character)
 	if frozen then
-		local root = character:WaitForChild("HumanoidRootPart", 5) :: BasePart?
+		local root = character:WaitForChild("HumanoidRootPart", 5)
 		if root then
 			root.Anchored = true
 		end
@@ -112,8 +320,8 @@ local powerDir = 1
 local charging = false
 
 local prompt: ProximityPrompt? = nil
-local course = Workspace:WaitForChild("Course")
-local pad = course:FindFirstChild("StartPad", true)
+local lobby = Workspace:WaitForChild("Lobby", 10)
+local pad = lobby and lobby:FindFirstChild("StartPad", true)
 if pad then
 	prompt = pad:FindFirstChildWhichIsA("ProximityPrompt", true)
 end
@@ -135,7 +343,7 @@ local function startCharge()
 	local stats = StartRun:InvokeServer()
 	if not stats or not data then
 		setMode("Idle")
-		Hud.toast("Still loading, try again!")
+		errorToast("Still loading, try again!")
 		return
 	end
 	freeze(true)
@@ -173,6 +381,28 @@ local function launch()
 	setMode("Rolling")
 end
 
+local function turbo()
+	if mode ~= "Rolling" or not data then
+		return
+	end
+	if (data.Turbos or 0) <= 0 then
+		buyRobux("Product", "Turbo5")
+		return
+	end
+	if not Runner.canTurbo() then
+		return
+	end
+	-- fire straight away so it feels instant; the server takes one off the count
+	data.Turbos -= 1
+	Hud.setTurbos(data.Turbos)
+	Runner.turbo()
+	Hud.turboFired()
+	task.spawn(function()
+		UseTurbo:InvokeServer()
+	end)
+end
+Hud.Callbacks.Turbo = turbo
+
 Runner.OnFinish = function(report)
 	setMode("Finishing")
 	task.spawn(function()
@@ -180,6 +410,9 @@ Runner.OnFinish = function(report)
 		local result = FinishRun:InvokeServer(report)
 		if not result then
 			result = { Earned = 0, NewBest = false, Distance = report.Distance, Smashed = report.Smashed, Combo = report.BestCombo }
+		end
+		if result.NewBest and result.Earned > 0 then
+			Effects.play("NewBest", 1)
 		end
 		Hud.setMode("Result")
 		setMode("Result")
@@ -225,9 +458,9 @@ UpgradeTree.OnBuy = function(nodeId: string)
 	local ok, message = BuyUpgrade:InvokeServer(nodeId)
 	if ok then
 		UpgradeTree.celebrate(nodeId)
-		Effects.play("Buy", 1.5, 0.7)
+		Effects.play("Purchase", 1.5)
 	else
-		Hud.toast(message or "Can't buy that yet")
+		errorToast(message or "Can't buy that yet")
 	end
 end
 
@@ -242,21 +475,31 @@ Panels.Callbacks.BuySkin = function(id: string)
 	local owned = data and data.Skins[id]
 	local ok, message = BuySkin:InvokeServer(id)
 	if ok then
-		Effects.play("Buy", 1.4, 0.7)
+		Effects.play("Purchase", 1.4)
 		Hud.toast(if owned then "Equipped!" else "Unlocked & equipped!", C.Green)
 	else
-		Hud.toast(message or "Can't buy that yet")
+		errorToast(message or "Can't buy that yet")
 	end
 end
 
 Panels.Callbacks.Rebirth = function()
 	local ok, message = DoRebirth:InvokeServer()
 	if ok then
-		Effects.play("Buy", 0.8, 0.8)
+		Effects.play("Purchase", 0.8)
 		Hud.toast("Reborn! Coins are worth more now.", C.Purple)
 		Panels.closeAll()
 	else
-		Hud.toast(message or "Not yet!")
+		errorToast(message or "Not yet!")
+	end
+end
+
+Panels.Callbacks.Admin = function(action: string, args)
+	local ok, message = AdminAction:InvokeServer(action, args)
+	if ok then
+		Hud.toast(message or "Done!", C.Green)
+		Effects.play("Click", 1.3)
+	else
+		errorToast(message or "That didn't work")
 	end
 end
 
@@ -281,6 +524,9 @@ end
 UserInputService.InputBegan:Connect(function(input, processed)
 	if mode == "Charge" and isChargeInput(input) and not processed then
 		charging = true
+		if hasPass("PerfectPush") then
+			power = 1
+		end
 		return
 	end
 	if processed then
@@ -295,6 +541,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		end
 	elseif UpgradeTree.IsOpen and key == Enum.KeyCode.U then
 		UpgradeTree.close()
+	elseif mode == "Rolling" and (key == Enum.KeyCode.T or key == Enum.KeyCode.ButtonY) then
+		turbo()
 	elseif mode == "Result" then
 		if key == Enum.KeyCode.R then
 			Panels.hideResult()
@@ -319,13 +567,17 @@ end)
 RunService:BindToRenderStep("SnowballSmash", Enum.RenderPriority.Camera.Value + 1, function(dt)
 	if mode == "Charge" then
 		if charging then
-			-- fills in about a second, then swings so timing matters
-			power += powerDir * dt * 0.95
-			if power >= 1 then
+			if hasPass("PerfectPush") then
 				power = 1
-				powerDir = -1
-			elseif power <= 0.35 and powerDir < 0 then
-				powerDir = 1
+			else
+				-- fills in about a second, then swings so timing matters
+				power += powerDir * dt * 0.95
+				if power >= 1 then
+					power = 1
+					powerDir = -1
+				elseif power <= 0.35 and powerDir < 0 then
+					powerDir = 1
+				end
 			end
 		end
 		Hud.setPower(power, charging)
@@ -336,4 +588,6 @@ RunService:BindToRenderStep("SnowballSmash", Enum.RenderPriority.Camera.Value + 
 end)
 
 -- Show the course from the start so the lobby looks alive
-Runner.resetCourse()
+refreshPasses()
+Runner.resetCourse(false)
+refreshBoosts()

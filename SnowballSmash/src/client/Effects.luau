@@ -6,33 +6,38 @@ local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Sounds = require(Shared:WaitForChild("Sounds"))
 local UIKit = require(script.Parent:WaitForChild("UIKit"))
 
 local Effects = {}
 
-Effects.Settings = { Music = true, SFX = true, Shake = true, SpeedLines = true, Hints = true } :: { [string]: boolean }
+Effects.Settings = { Music = true, SFX = true, Shake = true, SpeedLines = true, Hints = true }
 
 ----------------------------------------------------------------------
--- Sound
+-- Sound effects (ids come from ReplicatedStorage.Shared.Sounds)
 ----------------------------------------------------------------------
 local soundFolder = Instance.new("Folder")
 soundFolder.Name = "SnowballSounds"
 soundFolder.Parent = SoundService
 
-local templates: { [string]: Sound } = {}
-for name, id in Config.Sounds do
-	if id ~= "" then
-		local s = Instance.new("Sound")
-		s.Name = name
-		s.SoundId = id
-		s.Volume = if name == "Music" then 0.35 else 0.55
-		s.Looped = name == "Music"
-		s.Parent = soundFolder
-		templates[name] = s
+local templates = {}
+local function addTemplates(list, volume: number)
+	for name, id in list do
+		if type(id) == "string" and id ~= "" then
+			local s = Instance.new("Sound")
+			s.Name = name
+			s.SoundId = id
+			s.Volume = volume
+			s.Parent = soundFolder
+			templates[name] = s
+		end
 	end
 end
+addTemplates(Sounds.UI, Sounds.UIVolume)
+addTemplates(Sounds.Game, Sounds.SfxVolume)
 
+-- name: a key from Sounds.UI or Sounds.Game; volume: 0-1 multiplier
 function Effects.play(name: string, pitch: number?, volume: number?)
 	if not Effects.Settings.SFX then
 		return
@@ -43,26 +48,71 @@ function Effects.play(name: string, pitch: number?, volume: number?)
 	end
 	local s = t:Clone()
 	s.PlaybackSpeed = pitch or 1
-	if volume then
-		s.Volume = volume
-	end
+	s.Volume = t.Volume * (volume or 1)
 	s.Parent = soundFolder
 	s:Play()
 	Debris:AddItem(s, 4)
 end
 UIKit.PlaySound = Effects.play
 
-function Effects.applyMusic()
-	local music = templates.Music
-	if not music then
+----------------------------------------------------------------------
+-- Background music playlist (+ optional event music)
+----------------------------------------------------------------------
+local playlist = {}
+for _, id in Sounds.Music do
+	if type(id) == "string" and id ~= "" then
+		table.insert(playlist, id)
+	end
+end
+
+local music = Instance.new("Sound")
+music.Name = "Music"
+music.Volume = Sounds.MusicVolume
+music.Parent = soundFolder
+local track = 0
+local eventMusicOn = false
+
+local function playNext()
+	if eventMusicOn and Sounds.EventMusic ~= "" then
+		music.SoundId = Sounds.EventMusic
+		music.Looped = true
+	elseif #playlist > 0 then
+		track = track % #playlist + 1
+		music.SoundId = playlist[track]
+		music.Looped = #playlist == 1
+	else
+		music:Stop()
 		return
 	end
+	music.TimePosition = 0
+	music:Play()
+end
+
+music.Ended:Connect(function()
+	if Effects.Settings.Music then
+		playNext()
+	end
+end)
+
+function Effects.applyMusic()
 	if Effects.Settings.Music then
 		if not music.IsPlaying then
-			music:Play()
+			playNext()
 		end
 	else
 		music:Stop()
+	end
+end
+
+-- switch to/from Sounds.EventMusic while a storm is running
+function Effects.setEventMusic(on: boolean)
+	if on == eventMusicOn then
+		return
+	end
+	eventMusicOn = on
+	if Sounds.EventMusic ~= "" and Effects.Settings.Music then
+		music:Stop()
+		playNext()
 	end
 end
 
@@ -205,5 +255,54 @@ function Effects.burst(position: Vector3, color: Color3, count: number, size: nu
 	emitter:Emit(count)
 	Debris:AddItem(holder, 1.5)
 end
+
+----------------------------------------------------------------------
+-- Storm weather: heavy snowfall around the camera while a storm is active
+----------------------------------------------------------------------
+local stormPart: Part? = nil
+local stormEmitter: ParticleEmitter? = nil
+
+function Effects.setStorm(on: boolean, color: Color3?)
+	if on and not stormPart then
+		local p = Instance.new("Part")
+		p.Name = "StormSnow"
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Transparency = 1
+		p.Size = Vector3.new(160, 1, 160)
+		p.Parent = Workspace
+		local e = Instance.new("ParticleEmitter")
+		e.Rate = 260
+		e.Lifetime = NumberRange.new(2.5, 4)
+		e.Speed = NumberRange.new(25, 40)
+		e.EmissionDirection = Enum.NormalId.Bottom
+		e.SpreadAngle = Vector2.new(15, 15)
+		e.Acceleration = Vector3.new(14, 0, 6)
+		e.Size = NumberSequence.new(0.35)
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.6) })
+		e.LightEmission = 0.4
+		e.Parent = p
+		stormPart = p
+		stormEmitter = e
+	end
+	if stormEmitter and color then
+		stormEmitter.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+	end
+	if not on and stormPart then
+		stormPart:Destroy()
+		stormPart = nil
+		stormEmitter = nil
+	end
+end
+
+game:GetService("RunService").RenderStepped:Connect(function()
+	local p = stormPart
+	local camera = Workspace.CurrentCamera
+	if p and camera then
+		p.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, 45, 0) + camera.CFrame.LookVector * 40)
+	end
+end)
 
 return Effects

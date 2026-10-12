@@ -27,7 +27,7 @@ Config.Physics = {
 	MaxCombo = 5, -- highest combo multiplier
 	SizeBonusDiv = 10, -- coins x(1 + (radius - start) / this)
 	PickupValue = 5,
-	MaxRunTime = 150,
+	MaxRunTime = 300,
 }
 
 ----------------------------------------------------------------------
@@ -164,6 +164,8 @@ export type Skin = {
 	Material: Enum.Material,
 	Transparency: number,
 	Trail: Color3,
+	Pass: string?, -- game pass key needed instead of coins (see Monetization)
+	Rainbow: boolean?,
 }
 
 Config.Skins = {
@@ -179,6 +181,8 @@ Config.Skins = {
 		Material = Enum.Material.Foil, Transparency = 0, Trail = Color3.fromRGB(255, 220, 80) },
 	{ Id = "Galaxy", Name = "Galaxy", Price = 500000, Bonus = 2, Color = Color3.fromRGB(130, 70, 255), Clump = Color3.fromRGB(60, 220, 255),
 		Material = Enum.Material.Neon, Transparency = 0, Trail = Color3.fromRGB(180, 120, 255) },
+	{ Id = "Rainbow", Name = "Rainbow Ball", Price = 0, Bonus = 0.5, Color = Color3.fromRGB(255, 80, 80), Clump = Color3.fromRGB(255, 255, 255),
+		Material = Enum.Material.Neon, Transparency = 0, Trail = Color3.fromRGB(255, 255, 255), Pass = "RainbowBall", Rainbow = true },
 } :: { Skin }
 
 Config.SkinById = {} :: { [string]: Skin }
@@ -200,12 +204,58 @@ function Config.RebirthCost(rebirths: number): number
 end
 
 ----------------------------------------------------------------------
--- Stats derived from upgrades / rebirths / skin
+-- Turbo (bought in the shop, used during a run with T / the TURBO button)
+----------------------------------------------------------------------
+Config.Turbo = {
+	SpeedAdd = 90, -- instant speed boost
+	Duration = 3, -- seconds of unstoppable smashing (no speed lost on hits)
+}
+
+----------------------------------------------------------------------
+-- Server storms / events (started by admins or the Server Coin Storm product)
+----------------------------------------------------------------------
+export type EventDef = {
+	Id: string,
+	Name: string,
+	Icon: string,
+	Desc: string,
+	Color: Color3,
+	CoinMult: number?,
+	GrowthMult: number?,
+	LaunchMult: number?,
+	CritBonus: number?,
+	Mutation: boolean?,
+}
+
+Config.Events = {
+	{ Id = "Coins2", Name = "x2 Coins Storm", Icon = "💰", Desc = "All coins doubled!", Color = Color3.fromRGB(90, 220, 70), CoinMult = 2 },
+	{ Id = "Coins3", Name = "x3 Coins Storm", Icon = "🤑", Desc = "All coins tripled!", Color = Color3.fromRGB(40, 190, 90), CoinMult = 3 },
+	{ Id = "Mutation", Name = "Mutation Storm", Icon = "🔮", Desc = "Obstacles mutate into Golden (x3) and Diamond (x8)!", Color = Color3.fromRGB(190, 90, 255), Mutation = true },
+	{ Id = "Growth", Name = "Mega Growth", Icon = "⛄", Desc = "Snowballs grow twice as fast!", Color = Color3.fromRGB(110, 200, 255), GrowthMult = 2 },
+	{ Id = "Speed", Name = "Blizzard Speed", Icon = "🌪️", Desc = "Launch 50% faster!", Color = Color3.fromRGB(60, 150, 255), LaunchMult = 1.5 },
+	{ Id = "Lucky", Name = "Lucky Storm", Icon = "🍀", Desc = "+25% critical chance!", Color = Color3.fromRGB(80, 210, 120), CritBonus = 0.25 },
+} :: { EventDef }
+
+Config.EventById = {} :: { [string]: EventDef }
+for _, e in Config.Events do
+	Config.EventById[e.Id] = e
+end
+
+-- Mutations rolled per obstacle while a Mutation Storm is on
+Config.Mutations = {
+	{ Id = "Diamond", Chance = 0.08, Mult = 8, Color = Color3.fromRGB(120, 235, 255), Material = Enum.Material.Glass },
+	{ Id = "Golden", Chance = 0.25, Mult = 3, Color = Color3.fromRGB(255, 200, 40), Material = Enum.Material.Foil },
+}
+Config.MaxMutationMult = 8
+
+----------------------------------------------------------------------
+-- Stats derived from upgrades / rebirths / skin / passes / events
 ----------------------------------------------------------------------
 export type Stats = {
 	Launch: number,
 	Growth: number,
 	MaxRadius: number,
+	StartRadius: number,
 	Smash: number,
 	CoinMult: number,
 	ComboTime: number,
@@ -214,44 +264,33 @@ export type Stats = {
 	Crit: number,
 	Boost: number,
 	Air: number,
+	Mutation: boolean,
 }
 
-function Config.ComputeStats(owned: { [string]: boolean }, rebirths: number, skinId: string?): Stats
+-- extras: { CoinMult, GrowthMult, LaunchMult, CritBonus, StartRadiusBonus, Mutation }
+function Config.ComputeStats(owned: { [string]: boolean }, rebirths: number, skinId: string?, extras: { [string]: any }?): Stats
 	local P = Config.Physics
+	local e = extras or {}
 	local function lv(id: string): number
 		return Config.BranchLevel(owned, id)
 	end
 	local skin = Config.SkinById[skinId or "Classic"] or Config.SkinById.Classic
 	return {
-		Launch = P.BaseLaunch * (1 + 0.25 * lv("Push")),
-		Growth = P.BaseGrowth * (1 + 0.35 * lv("Growth")),
-		MaxRadius = P.BaseMaxRadius + 3 * lv("Mega"),
+		Launch = P.BaseLaunch * (1 + 0.25 * lv("Push")) * (e.LaunchMult or 1),
+		Growth = P.BaseGrowth * (1 + 0.35 * lv("Growth")) * (e.GrowthMult or 1),
+		MaxRadius = P.BaseMaxRadius + 3 * lv("Mega") + (e.StartRadiusBonus or 0),
+		StartRadius = P.StartRadius + (e.StartRadiusBonus or 0),
 		Smash = P.BaseSmash * (1 + 0.4 * lv("Smash")),
-		CoinMult = (1 + 0.5 * lv("Coin")) * (1 + Config.Rebirth.BonusPer * rebirths) * (1 + skin.Bonus),
+		CoinMult = (1 + 0.5 * lv("Coin")) * (1 + Config.Rebirth.BonusPer * rebirths) * (1 + skin.Bonus) * (e.CoinMult or 1),
 		ComboTime = P.BaseComboTime + 0.4 * lv("Combo"),
 		Steer = P.BaseSteer * (1 + 0.3 * lv("Steer")),
 		Friction = P.BaseFriction * (1 - 0.12 * lv("Slick")),
-		Crit = P.BaseCrit + 0.05 * lv("Lucky"),
+		Crit = P.BaseCrit + 0.05 * lv("Lucky") + (e.CritBonus or 0),
 		Boost = P.BaseBoost * (1 + 0.3 * lv("Boost")),
 		Air = 1 + 0.25 * lv("Air"),
+		Mutation = e.Mutation == true,
 	}
 end
-
-----------------------------------------------------------------------
--- Sounds. Built-in Roblox sounds work everywhere; swap in your own
--- rbxassetid://... ids from the Creator Store if you like.
--- Leave Music empty ("") to have no background music.
-----------------------------------------------------------------------
-Config.Sounds = {
-	Click = "rbxasset://sounds/electronicpingshort.wav",
-	Coin = "rbxasset://sounds/electronicpingshort.wav",
-	Launch = "rbxasset://sounds/action_jump.mp3",
-	Smash = "rbxasset://sounds/impact_water.mp3",
-	Land = "rbxasset://sounds/action_jump_land.mp3",
-	Boost = "rbxasset://sounds/swordlunge.wav",
-	Buy = "rbxasset://sounds/electronicpingshort.wav",
-	Music = "",
-}
 
 ----------------------------------------------------------------------
 -- Number formatting
