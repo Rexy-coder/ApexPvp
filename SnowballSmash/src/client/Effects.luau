@@ -12,7 +12,7 @@ local UIKit = require(script.Parent:WaitForChild("UIKit"))
 
 local Effects = {}
 
-Effects.Settings = { Music = true, SFX = true, Shake = true, SpeedLines = true, Hints = true }
+Effects.Settings = { Music = true, SFX = true, Shake = true, SpeedLines = true, Hints = true, PerfectPush = true }
 
 ----------------------------------------------------------------------
 -- Sound effects (ids come from ReplicatedStorage.Shared.Sounds)

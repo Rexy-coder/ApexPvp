@@ -96,7 +96,7 @@ end
 ----------------------------------------------------------------------
 -- Settings
 ----------------------------------------------------------------------
-local settingsPanel = UIKit.panel(Hud.Root, "Settings", "⚙️", 560, 470)
+local settingsPanel = UIKit.panel(Hud.Root, "Settings", "⚙️", 560, 538)
 register("Settings", settingsPanel)
 list(settingsPanel.Content)
 
@@ -107,6 +107,7 @@ local SETTINGS = {
 	{ Key = "Shake", Text = "Camera Shake" },
 	{ Key = "SpeedLines", Text = "Speed Lines" },
 	{ Key = "Hints", Text = "Hints" },
+	{ Key = "PerfectPush", Text = "Perfect Push (pass)" },
 }
 for i, s in SETTINGS do
 	local r = row(settingsPanel.Content, i, s.Text)

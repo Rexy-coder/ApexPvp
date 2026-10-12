@@ -524,9 +524,6 @@ end
 UserInputService.InputBegan:Connect(function(input, processed)
 	if mode == "Charge" and isChargeInput(input) and not processed then
 		charging = true
-		if hasPass("PerfectPush") then
-			power = 1
-		end
 		return
 	end
 	if processed then
@@ -567,8 +564,9 @@ end)
 RunService:BindToRenderStep("SnowballSmash", Enum.RenderPriority.Camera.Value + 1, function(dt)
 	if mode == "Charge" then
 		if charging then
-			if hasPass("PerfectPush") then
-				power = 1
+			if hasPass("PerfectPush") and Effects.Settings.PerfectPush ~= false then
+				-- Perfect Push pass: fills fast and stays at MAX
+				power = math.min(1, power + dt * 4)
 			else
 				-- fills in about a second, then swings so timing matters
 				power += powerDir * dt * 0.95

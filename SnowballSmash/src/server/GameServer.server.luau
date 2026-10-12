@@ -62,7 +62,7 @@ local function defaultData()
 		Owned = {},
 		Skins = { Classic = true },
 		Skin = "Classic",
-		Settings = { Music = true, SFX = true, Shake = true, SpeedLines = true, Hints = true },
+		Settings = { Music = true, SFX = true, Shake = true, SpeedLines = true, Hints = true, PerfectPush = true },
 		Turbos = 0,
 		BoostEnds = 0,
 		GrantedPasses = {}, -- passes given by an admin
@@ -71,7 +71,7 @@ local function defaultData()
 	}
 end
 
-local SETTING_KEYS = { Music = true, SFX = true, Shake = true, SpeedLines = true, Hints = true }
+local SETTING_KEYS = { Music = true, SFX = true, Shake = true, SpeedLines = true, Hints = true, PerfectPush = true }
 
 local store = nil
 do
