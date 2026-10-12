@@ -42,7 +42,7 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
   background, coins count up, and the hex upgrade tree pans and zooms smoothly. It all scales
   to any screen size.
 * **Upgrade tree:** 11 branches and 45 upgrades.
-* **Robux shop:** 6 game passes and 11 developer products (see below), plus coin skins.
+* **Robux shop:** 6 game passes and 9 developer products (see below), plus coin skins.
 * **Rebirth:** reset for +50% coins per rebirth.
 * **Admin panel:** announcements, server storms, and giving coins, turbos or game passes.
 * **Settings / Stats**, DataStore saving, and server-side checks on every purchase and run result.
@@ -74,6 +74,11 @@ An item that still has `Id = 0` says "Coming soon" when clicked.
 | ⏱️ x2 Coins (15 min) | 49 R$ | Personal coin boost |
 | ⌛ x2 Coins (1 hour) | 149 R$ | Personal coin boost |
 | 🌪️ Server Coin Storm | 199 R$ | x2 coins for **everyone** in the server for 10 min |
+
+**Create them all at once:** `tools/create-shop-items.ps1` (Windows PowerShell) creates every pass
+and product through Roblox Open Cloud with **regional pricing and managed pricing turned off**,
+then prints the IDs and saves them to `shop-ids.txt`. Instructions for the API key are at the top
+of the script.
 
 Purchases are granted by `ProcessReceipt` on the server and recorded so they are never granted twice.
 Pressing TURBO with 0 turbos opens the purchase prompt.
