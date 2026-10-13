@@ -31,11 +31,10 @@ MARK = WHITE  # quarter and hands
 d = ImageDraw.Draw(img)
 cx, cy, r = W / 2, 430, 270
 d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=FACE)
-rim = 20  # ring of face colour that stays around the edge
-hw = 46  # hand thickness
-hand_len = r - rim - hw / 2
-# quarter between the hands (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
-d.pieslice([cx - r + rim, cy - r + rim, cx + r - rim, cy + r - rim], -90, 0, fill=MARK)
+# bezel: white ring inside the black edge
+ring = 14
+d.ellipse([cx - r + 18, cy - r + 18, cx + r - 18, cy + r - 18], fill=MARK)
+d.ellipse([cx - r + 18 + ring, cy - r + 18 + ring, cx + r - 18 - ring, cy + r - 18 - ring], fill=FACE)
 
 
 def stroke(points, width, color):
@@ -44,10 +43,25 @@ def stroke(points, width, color):
         d.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=color)
 
 
-hands = [(cx, cy - hand_len), (cx + hand_len, cy)]
-# the hands: thick lines with rounded ends, joined to the quarter
-for tip in hands:
-    stroke([(cx, cy), tip], hw, MARK)
+# hour marks (bigger at 12, 3, 6 and 9)
+for h in range(12):
+    a = h / 12 * 2 * math.pi
+    big = h % 3 == 0
+    r1 = r - 62
+    r2 = r - (122 if big else 98)
+    stroke([(cx + math.sin(a) * r1, cy - math.cos(a) * r1), (cx + math.sin(a) * r2, cy - math.cos(a) * r2)],
+           22 if big else 14, MARK)
+
+# the white quarter between the hands (inside the hour marks)
+hw = 46  # hand thickness
+q = r - 140  # radius of the quarter / hand length
+d.pieslice([cx - q, cy - q, cx + q, cy + q], -90, 0, fill=MARK)
+for tip in [(cx, cy - q + hw / 2), (cx + q - hw / 2, cy)]:
+    stroke([(cx, cy), tip], hw, MARK)  # hands with rounded ends, joined to the quarter
+
+# centre pin
+d.ellipse([cx - 22, cy - 22, cx + 22, cy + 22], fill=FACE)
+d.ellipse([cx - 9, cy - 9, cx + 9, cy + 9], fill=MARK)
 
 
 # straight black-and-white text under the clock
