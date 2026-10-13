@@ -30,9 +30,26 @@ d = ImageDraw.Draw(img)
 cx, cy, r = W / 2, 430, 270
 d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE)
 rim = 20  # white ring that stays around the edge
-# black quarter between the hands, reaching out to the white rim
-# (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
+hw = 46  # hand thickness
+gap = 16  # white gap between the hands and the black quarter
+hand_len = r - rim - hw / 2 - 6
+# black quarter between the hands (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
 d.pieslice([cx - r + rim, cy - r + rim, cx + r - rim, cy + r - rim], -90, 0, fill=BLACK)
+
+
+def stroke(points, width, color):
+    d.line(points, fill=color, width=int(width))
+    for x, y in points:  # rounded ends
+        d.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=color)
+
+
+hands = [(cx, cy - hand_len), (cx + hand_len, cy)]
+# white outline around the hands so they stand out from the black quarter
+for tip in hands:
+    stroke([(cx, cy), tip], hw + gap * 2, WHITE)
+# the hands themselves: thick black lines with rounded ends
+for tip in hands:
+    stroke([(cx, cy), tip], hw, BLACK)
 
 
 # straight black-and-white text under the clock
