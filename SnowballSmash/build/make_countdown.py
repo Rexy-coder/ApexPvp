@@ -22,17 +22,17 @@ img = Image.open("docs/art/thumbnail_1920x1080.png").convert("RGBA")
 # darken a little so the clock stands out, but keep the picture visible
 img.alpha_composite(Image.new("RGBA", (W, H), (10, 15, 40, 95)))
 
-# flat 2D clock: black face, two hands at 90 degrees (12 and 3 o'clock),
-# the quarter between the hands is white
+# flat 2D clock: white face, two hands at 90 degrees (12 and 3 o'clock),
+# the quarter between the hands is black
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 d = ImageDraw.Draw(img)
 cx, cy, r = W / 2, 430, 270
-d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=BLACK)
-rim = 20  # black ring that stays around the edge
-# white quarter between the hands, reaching out to the black rim
+d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE)
+rim = 20  # white ring that stays around the edge
+# black quarter between the hands, reaching out to the white rim
 # (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
-d.pieslice([cx - r + rim, cy - r + rim, cx + r - rim, cy + r - rim], -90, 0, fill=WHITE)
+d.pieslice([cx - r + rim, cy - r + rim, cx + r - rim, cy + r - rim], -90, 0, fill=BLACK)
 
 
 # straight black-and-white text under the clock
