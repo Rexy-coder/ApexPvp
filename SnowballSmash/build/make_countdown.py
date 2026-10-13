@@ -31,8 +31,7 @@ cx, cy, r = W / 2, 430, 270
 d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE)
 rim = 20  # white ring that stays around the edge
 hw = 46  # hand thickness
-gap = 16  # white gap between the hands and the black quarter
-hand_len = r - rim - hw / 2 - 6
+hand_len = r - rim - hw / 2
 # black quarter between the hands (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
 d.pieslice([cx - r + rim, cy - r + rim, cx + r - rim, cy + r - rim], -90, 0, fill=BLACK)
 
@@ -44,10 +43,7 @@ def stroke(points, width, color):
 
 
 hands = [(cx, cy - hand_len), (cx + hand_len, cy)]
-# white outline around the hands so they stand out from the black quarter
-for tip in hands:
-    stroke([(cx, cy), tip], hw + gap * 2, WHITE)
-# the hands themselves: thick black lines with rounded ends
+# the hands: thick black lines with rounded ends, joined to the black quarter
 for tip in hands:
     stroke([(cx, cy), tip], hw, BLACK)
 
