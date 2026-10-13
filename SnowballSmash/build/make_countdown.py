@@ -29,20 +29,10 @@ WHITE = (255, 255, 255)
 d = ImageDraw.Draw(img)
 cx, cy, r = W / 2, 430, 270
 d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=BLACK)
-hand_len = r * 0.72
-hw = 52
-# white quarter between the hands (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
-d.pieslice([cx - hand_len, cy - hand_len, cx + hand_len, cy + hand_len], -90, 0, fill=WHITE)
-
-
-def hand(x2, y2):
-    d.line([cx, cy, x2, y2], fill=WHITE, width=hw)
-    for x, y in ((cx, cy), (x2, y2)):  # rounded ends
-        d.ellipse([x - hw / 2, y - hw / 2, x + hw / 2, y + hw / 2], fill=WHITE)
-
-
-hand(cx, cy - hand_len)  # 12 o'clock
-hand(cx + hand_len, cy)  # 3 o'clock
+rim = 20  # black ring that stays around the edge
+# white quarter between the hands, reaching out to the black rim
+# (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
+d.pieslice([cx - r + rim, cy - r + rim, cx + r - rim, cy + r - rim], -90, 0, fill=WHITE)
 
 
 # straight black-and-white text under the clock
