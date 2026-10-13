@@ -15,7 +15,9 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Monetization = require(Shared:WaitForChild("Monetization"))
 local CourseGen = require(Shared:WaitForChild("CourseGen"))
+local Pets = require(Shared:WaitForChild("Pets"))
 local AdminConfig = require(script.Parent:WaitForChild("AdminConfig"))
+local Codes = require(script.Parent:WaitForChild("Codes"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local GameState = ReplicatedStorage:WaitForChild("GameState")
 
@@ -30,6 +32,13 @@ local SetSetting = Remotes:WaitForChild("SetSetting") :: RemoteEvent
 local UseTurbo = Remotes:WaitForChild("UseTurbo") :: RemoteFunction
 local AdminAction = Remotes:WaitForChild("AdminAction") :: RemoteFunction
 local Notify = Remotes:WaitForChild("Notify") :: RemoteEvent
+local HatchEgg = Remotes:WaitForChild("HatchEgg") :: RemoteFunction
+local PetAction = Remotes:WaitForChild("PetAction") :: RemoteFunction
+local ClaimDaily = Remotes:WaitForChild("ClaimDaily") :: RemoteFunction
+local RedeemCode = Remotes:WaitForChild("RedeemCode") :: RemoteFunction
+
+local rng = Random.new()
+local givePet -- defined in the Pets section below
 
 local P = Config.Physics
 local Perks = Monetization.Perks
@@ -44,6 +53,17 @@ local course = Workspace:FindFirstChild("Course")
 local preview = course and course:FindFirstChild("Preview")
 if preview then
 	preview:Destroy()
+end
+if not Config.Halloween.Enabled then
+	local lobby = Workspace:FindFirstChild("Lobby")
+	local spooky = lobby and lobby:FindFirstChild("Halloween", true)
+	if spooky then
+		spooky:Destroy()
+	end
+	local spookyEgg = lobby and lobby:FindFirstChild("Egg_Spooky", true)
+	if spookyEgg then
+		spookyEgg:Destroy()
+	end
 end
 
 ----------------------------------------------------------------------
@@ -68,6 +88,15 @@ local function defaultData()
 		GrantedPasses = {}, -- passes given by an admin
 		Receipts = {}, -- PurchaseId -> true (so a purchase is never granted twice)
 		ReceiptOrder = {},
+		-- Update 2
+		Candy = 0,
+		Pets = {}, -- uid -> { P = petId, L = locked }
+		Equipped = {}, -- list of uids
+		Index = {}, -- petId -> true once ever hatched
+		NextPetId = 1,
+		DailyStreak = 0,
+		LastDaily = -1, -- day number of the last claim
+		Codes = {}, -- redeemed codes
 	}
 end
 
@@ -178,6 +207,22 @@ local function extrasFor(player: Player)
 	end
 	if data and data.BoostEnds > now() then
 		extras.CoinMult *= Perks.BoostMult
+	end
+	if data then
+		local coins, growth, launch = 0, 0, 0
+		for _, uid in data.Equipped do
+			local owned = data.Pets[uid]
+			local pet = owned and Pets.ById[owned.P]
+			if pet then
+				coins += pet.Coins
+				growth += pet.Growth
+				launch += pet.Launch
+			end
+		end
+		coins += #Pets.CompletedEggs(data.Index) * Pets.IndexBonus
+		extras.CoinMult *= 1 + coins / 100
+		extras.GrowthMult *= 1 + growth / 100
+		extras.LaunchMult *= 1 + launch / 100
 	end
 	for _, e in Config.Events do
 		if eventActive(e.Id) then
@@ -302,6 +347,75 @@ task.spawn(function()
 end)
 
 ----------------------------------------------------------------------
+-- Pets
+----------------------------------------------------------------------
+local leaderboardDirty = {}
+
+local function equipSlots(player: Player): number
+	return Pets.BaseEquipSlots + (if hasPass(player, "ExtraPets") then Pets.ExtraSlotsPass else 0)
+end
+
+local function petCount(data): number
+	local n = 0
+	for _ in data.Pets do
+		n += 1
+	end
+	return n
+end
+
+-- other clients draw everyone's equipped pets from this attribute
+local function updatePetAttribute(player: Player)
+	local data = profiles[player]
+	if not data then
+		return
+	end
+	local ids = {}
+	for _, uid in data.Equipped do
+		local owned = data.Pets[uid]
+		if owned then
+			table.insert(ids, owned.P)
+		end
+	end
+	player:SetAttribute("EquippedPets", table.concat(ids, ","))
+end
+
+local function cleanEquipped(player: Player, data)
+	local slots = equipSlots(player)
+	local clean = {}
+	for _, uid in data.Equipped do
+		if data.Pets[uid] and #clean < slots and not table.find(clean, uid) then
+			table.insert(clean, uid)
+		end
+	end
+	data.Equipped = clean
+end
+
+-- adds a pet to the inventory (auto-equips it if there is a free slot)
+givePet = function(player: Player, data, petId: string, autoEquip: boolean?): string
+	local uid = "p" .. data.NextPetId
+	data.NextPetId += 1
+	data.Pets[uid] = { P = petId, L = false }
+	data.Index[petId] = true
+	if autoEquip ~= false and #data.Equipped < equipSlots(player) then
+		table.insert(data.Equipped, uid)
+	end
+	updatePetAttribute(player)
+	return uid
+end
+
+local function grantReward(player: Player, data, reward)
+	local hatched = nil
+	data.Coins += reward.Coins or 0
+	data.Turbos += reward.Turbos or 0
+	data.Candy += reward.Candy or 0
+	if reward.Egg and Pets.EggById[reward.Egg] then
+		hatched = Pets.Roll(reward.Egg, if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1, rng)
+		givePet(player, data, hatched)
+	end
+	return hatched
+end
+
+----------------------------------------------------------------------
 -- Players joining / leaving
 ----------------------------------------------------------------------
 local function onPlayerAdded(player: Player)
@@ -349,7 +463,9 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	profiles[player] = merge(saved)
+	cleanEquipped(player, profiles[player])
 	refreshPassAttributes(player)
+	updatePetAttribute(player)
 	push(player)
 
 	player.CharacterAdded:Connect(function(character)
@@ -372,6 +488,7 @@ Players.PlayerRemoving:Connect(function(player)
 	loaded[player] = nil
 	activeRuns[player] = nil
 	robloxOwned[player] = nil
+	leaderboardDirty[player] = nil
 end)
 
 game:BindToClose(function()
@@ -418,6 +535,12 @@ local function grantProduct(player: Player, data, product)
 		data.Turbos += product.Amount
 	elseif product.Kind == "ServerBoost" then
 		startEvent("Coins2", product.Minutes, player.DisplayName, true)
+	elseif product.Kind == "Candy" then
+		data.Candy += product.Amount
+	elseif product.Kind == "LegendaryPet" then
+		local petId = Pets.RollLegendary(rng)
+		givePet(player, data, petId, true)
+		notify(player, "PetGranted", { Pets = { petId } })
 	end
 end
 
@@ -510,6 +633,12 @@ FinishRun.OnServerInvoke = function(player, report)
 	end
 	local distanceCoins = distance * P.DistanceCoinRate * stats.CoinMult
 	local earned = math.floor(smashCoins + distanceCoins)
+	local candy = 0
+	if Config.Halloween.Enabled then
+		candy = math.clamp(math.floor(tonumber(report.Candy) or 0), 0, CourseGen.CandyUpTo(distance + 50))
+		data.Candy += candy
+	end
+	leaderboardDirty[player] = true
 
 	local newBest = earned > data.BestEarn
 	data.Coins += earned
@@ -527,6 +656,7 @@ FinishRun.OnServerInvoke = function(player, report)
 		Distance = math.floor(distance),
 		Smashed = smashed,
 		Combo = combo,
+		Candy = candy,
 	}
 end
 
@@ -561,10 +691,11 @@ BuySkin.OnServerInvoke = function(player, skinId)
 		end
 		data.Skins[skin.Id] = true
 	elseif not data.Skins[skin.Id] then
-		if data.Coins < skin.Price then
-			return false, "Not enough coins!"
+		local field = if skin.Currency == "Candy" then "Candy" else "Coins"
+		if data[field] < skin.Price then
+			return false, if field == "Candy" then "Not enough candy!" else "Not enough coins!"
 		end
-		data.Coins -= skin.Price
+		data[field] -= skin.Price
 		data.Skins[skin.Id] = true
 	end
 	data.Skin = skin.Id
@@ -734,3 +865,263 @@ AdminAction.OnServerInvoke = function(player, action, args)
 	end
 	return handler(player, if type(args) == "table" then args else {})
 end
+
+actions.GiveCandy = function(admin: Player, args)
+	local target = findPlayer(admin, args.Target)
+	local amount = math.floor(tonumber(args.Amount) or 0)
+	if not target or not profiles[target] then
+		return false, "Player not found"
+	end
+	if amount <= 0 then
+		return false, "Enter an amount"
+	end
+	profiles[target].Candy += math.min(amount, 1e12)
+	push(target)
+	if target ~= admin then
+		notify(target, "Gift", { Text = "An admin gave you " .. Config.Commas(amount) .. " candy!" })
+	end
+	return true, "Gave " .. Config.Commas(amount) .. " candy to " .. target.DisplayName
+end
+
+----------------------------------------------------------------------
+-- Eggs & pets remotes
+----------------------------------------------------------------------
+local lastHatch = {}
+
+HatchEgg.OnServerInvoke = function(player, eggId, count)
+	local data = profiles[player]
+	local egg = if type(eggId) == "string" then Pets.EggById[eggId] else nil
+	if not data or not egg then
+		return false, "Not ready"
+	end
+	if egg.Halloween and not Config.Halloween.Enabled then
+		return false, "This egg is not available right now"
+	end
+	if lastHatch[player] and os.clock() - lastHatch[player] < 0.35 then
+		return false, nil
+	end
+	count = if count == 3 then 3 else 1
+	if count == 3 and not hasPass(player, "TripleHatch") then
+		return false, "Needs the Triple Hatch pass!"
+	end
+	if petCount(data) + count > Pets.MaxInventory then
+		return false, "Pet inventory full! Delete some pets."
+	end
+	local field = if egg.Currency == "Candy" then "Candy" else "Coins"
+	local cost = egg.Price * count
+	if data[field] < cost then
+		return false, if field == "Candy" then "Not enough candy!" else "Not enough coins!"
+	end
+	lastHatch[player] = os.clock()
+	data[field] -= cost
+	local luck = if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1
+	local results = {}
+	for _ = 1, count do
+		local petId = Pets.Roll(egg.Id, luck, rng)
+		givePet(player, data, petId)
+		table.insert(results, petId)
+	end
+	push(player)
+	return true, results
+end
+
+PetAction.OnServerInvoke = function(player, action, uid)
+	local data = profiles[player]
+	if not data or type(action) ~= "string" then
+		return false, "Not ready"
+	end
+	local slots = equipSlots(player)
+	local owned = if type(uid) == "string" then data.Pets[uid] else nil
+	local equippedAt = if type(uid) == "string" then table.find(data.Equipped, uid) else nil
+
+	if action == "Equip" then
+		if not owned then
+			return false, "Pet not found"
+		end
+		if not equippedAt then
+			if #data.Equipped >= slots then
+				return false, "All " .. slots .. " pet slots are full!"
+			end
+			table.insert(data.Equipped, uid)
+		end
+	elseif action == "Unequip" then
+		if equippedAt then
+			table.remove(data.Equipped, equippedAt)
+		end
+	elseif action == "ToggleLock" then
+		if not owned then
+			return false, "Pet not found"
+		end
+		owned.L = not owned.L
+	elseif action == "Delete" then
+		if not owned then
+			return false, "Pet not found"
+		end
+		if owned.L then
+			return false, "This pet is locked"
+		end
+		if equippedAt then
+			table.remove(data.Equipped, equippedAt)
+		end
+		data.Pets[uid] = nil
+	elseif action == "EquipBest" then
+		local all = {}
+		for id in data.Pets do
+			table.insert(all, id)
+		end
+		table.sort(all, function(a, b)
+			return Pets.Score(data.Pets[a].P) > Pets.Score(data.Pets[b].P)
+		end)
+		data.Equipped = {}
+		for i = 1, math.min(slots, #all) do
+			table.insert(data.Equipped, all[i])
+		end
+	elseif action == "DeleteUnlocked" then
+		for id, pet in data.Pets do
+			if not pet.L and not table.find(data.Equipped, id) then
+				data.Pets[id] = nil
+			end
+		end
+	else
+		return false, "Unknown action"
+	end
+	cleanEquipped(player, data)
+	updatePetAttribute(player)
+	push(player)
+	return true, nil
+end
+
+----------------------------------------------------------------------
+-- Daily rewards & codes
+----------------------------------------------------------------------
+local function today(): number
+	return math.floor(os.time() / 86400)
+end
+
+ClaimDaily.OnServerInvoke = function(player)
+	local data = profiles[player]
+	if not data then
+		return false, "Not ready"
+	end
+	local day = today()
+	if data.LastDaily == day then
+		return false, "Already claimed today - come back tomorrow!"
+	end
+	local streak = if data.LastDaily == day - 1 then data.DailyStreak % #Config.Daily + 1 else 1
+	local reward = Config.Daily[streak]
+	local pet = grantReward(player, data, reward)
+	data.LastDaily = day
+	data.DailyStreak = streak
+	push(player)
+	return true, { Day = streak, Pet = pet }
+end
+
+RedeemCode.OnServerInvoke = function(player, code)
+	local data = profiles[player]
+	if not data or type(code) ~= "string" then
+		return false, "Not ready"
+	end
+	code = string.upper((string.gsub(code, "%s", "")))
+	local reward = Codes[code]
+	if not reward then
+		return false, "That code doesn't exist"
+	end
+	if reward.Expires and os.time() > reward.Expires then
+		return false, "That code has expired"
+	end
+	if data.Codes[code] then
+		return false, "You already redeemed this code"
+	end
+	data.Codes[code] = true
+	local pet = grantReward(player, data, reward)
+	push(player)
+	return true, { Reward = reward, Pet = pet }
+end
+
+----------------------------------------------------------------------
+-- Global leaderboards (lobby boards)
+----------------------------------------------------------------------
+local boards = {
+	{ Board = "DistanceBoard", Store = "SS_BestDistance_v1", Field = "BestDistance", Suffix = " studs" },
+	{ Board = "CoinsBoard", Store = "SS_TotalEarned_v1", Field = "TotalEarned", Suffix = "" },
+}
+for _, b in boards do
+	local ok, result = pcall(function()
+		return DataStoreService:GetOrderedDataStore(b.Store)
+	end)
+	b.Ordered = if ok then result else nil
+end
+
+local nameCache = {}
+local function nameOf(userId: number): string
+	if nameCache[userId] then
+		return nameCache[userId]
+	end
+	local ok, name = pcall(function()
+		return Players:GetNameFromUserIdAsync(userId)
+	end)
+	nameCache[userId] = if ok then name else "Player"
+	return nameCache[userId]
+end
+
+local function fillBoard(boardName: string, entries, suffix: string)
+	local lobby = Workspace:FindFirstChild("Lobby")
+	local board = lobby and lobby:FindFirstChild(boardName, true)
+	local list = board and board:FindFirstChild("List", true)
+	if not list then
+		return
+	end
+	for i = 1, 10 do
+		local row = list:FindFirstChild("Row" .. i)
+		if row then
+			local entry = entries[i]
+			row.PlayerName.Text = if entry then entry.Name else "-"
+			row.Value.Text = if entry then Config.Short(entry.Value) .. suffix else ""
+		end
+	end
+end
+
+local function refreshBoards()
+	for _, b in boards do
+		local entries = {}
+		local fetched = false
+		if b.Ordered then
+			for player in leaderboardDirty do
+				local data = profiles[player]
+				if data then
+					pcall(function()
+						b.Ordered:SetAsync(tostring(player.UserId), math.floor(data[b.Field]))
+					end)
+				end
+			end
+			local ok, page = pcall(function()
+				return b.Ordered:GetSortedAsync(false, 10):GetCurrentPage()
+			end)
+			if ok then
+				fetched = true
+				for _, item in page do
+					table.insert(entries, { Name = nameOf(tonumber(item.key) or 0), Value = item.value })
+				end
+			end
+		end
+		if not fetched then
+			-- no DataStore access (e.g. Studio): show the players in this server
+			for player, data in profiles do
+				table.insert(entries, { Name = player.Name, Value = data[b.Field] })
+			end
+			table.sort(entries, function(x, y)
+				return x.Value > y.Value
+			end)
+		end
+		fillBoard(b.Board, entries, b.Suffix)
+	end
+	table.clear(leaderboardDirty)
+end
+
+task.spawn(function()
+	task.wait(8)
+	while true do
+		refreshBoards()
+		task.wait(60)
+	end
+end)

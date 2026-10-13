@@ -26,7 +26,11 @@ $passes = @(
     @{ Key = "PerfectPush"; Name = "Perfect Push"; Price = 199; Desc = "The power bar fills to MAX instantly, every time." },
     @{ Key = "MegaStart";   Name = "Mega Start";   Price = 249; Desc = "Start every run with a bigger snowball." },
     @{ Key = "LuckyCharm";  Name = "Lucky Charm";  Price = 179; Desc = "+10% chance for CRITICAL smashes (double coins)." },
-    @{ Key = "RainbowBall"; Name = "Rainbow Ball"; Price = 149; Desc = "Exclusive colour-shifting snowball skin, +50% coins." }
+    @{ Key = "RainbowBall"; Name = "Rainbow Ball"; Price = 149; Desc = "Exclusive colour-shifting snowball skin, +50% coins." },
+    @{ Key = "TripleHatch"; Name = "Triple Hatch"; Price = 249; Desc = "Hatch 3 eggs at once!" },
+    @{ Key = "AutoHatch";   Name = "Auto Hatch";   Price = 299; Desc = "Keep hatching eggs automatically." },
+    @{ Key = "LuckyEggs";   Name = "Lucky Eggs";   Price = 399; Desc = "x1.5 chance for Rare, Epic, Legendary and Secret pets." },
+    @{ Key = "ExtraPets";   Name = "+2 Pet Slots"; Price = 199; Desc = "Equip 2 more pets at the same time." }
 )
 
 $products = @(
@@ -38,7 +42,10 @@ $products = @(
     @{ Key = "CoinsHuge";   Name = "Vault of Coins";     Price = 799; Desc = "+250,000 coins" },
     @{ Key = "Boost15";     Name = "x2 Coins (15 min)";  Price = 49;  Desc = "Your coins are doubled for 15 minutes." },
     @{ Key = "Boost60";     Name = "x2 Coins (1 hour)";  Price = 149; Desc = "Your coins are doubled for a whole hour." },
-    @{ Key = "ServerStorm"; Name = "Server Coin Storm";  Price = 199; Desc = "x2 coins for EVERYONE in the server for 10 minutes!" }
+    @{ Key = "ServerStorm"; Name = "Server Coin Storm";  Price = 199; Desc = "x2 coins for EVERYONE in the server for 10 minutes!" },
+    @{ Key = "LegendaryPet"; Name = "Legendary Pet";     Price = 299; Desc = "Get a random Legendary pet (5% chance: SECRET)!" },
+    @{ Key = "CandySmall";  Name = "Bag of Candy";       Price = 49;  Desc = "+250 Halloween candy" },
+    @{ Key = "CandyLarge";  Name = "Cauldron of Candy";  Price = 149; Desc = "+1,000 Halloween candy" }
 )
 
 $universeId = (Read-Host "Universe ID").Trim()

@@ -74,6 +74,43 @@ Monetization.Passes = {
 		Desc = "Exclusive colour-shifting snowball skin, +50% coins.",
 		Color = Color3.fromRGB(255, 92, 196),
 	},
+	-- Update 2: pets
+	{
+		Key = "TripleHatch",
+		Id = 0, -- << Triple Hatch game pass id
+		Price = 249,
+		Name = "Triple Hatch",
+		Icon = "🥚",
+		Desc = "Hatch 3 eggs at once!",
+		Color = Color3.fromRGB(120, 200, 255),
+	},
+	{
+		Key = "AutoHatch",
+		Id = 0, -- << Auto Hatch game pass id
+		Price = 299,
+		Name = "Auto Hatch",
+		Icon = "🔁",
+		Desc = "Keep hatching eggs automatically.",
+		Color = Color3.fromRGB(90, 220, 160),
+	},
+	{
+		Key = "LuckyEggs",
+		Id = 0, -- << Lucky Eggs game pass id
+		Price = 399,
+		Name = "Lucky Eggs",
+		Icon = "🍀",
+		Desc = "x1.5 chance for Rare, Epic, Legendary and Secret pets.",
+		Color = Color3.fromRGB(80, 210, 120),
+	},
+	{
+		Key = "ExtraPets",
+		Id = 0, -- << +2 Pet Slots game pass id
+		Price = 199,
+		Name = "+2 Pet Slots",
+		Icon = "🐾",
+		Desc = "Equip 2 more pets at the same time.",
+		Color = Color3.fromRGB(255, 160, 80),
+	},
 }
 
 ----------------------------------------------------------------------
@@ -82,6 +119,8 @@ Monetization.Passes = {
 -- Kind = "Boost"       -> personal x2 coins for Minutes (stacks time)
 -- Kind = "ServerBoost" -> x2 coins storm for the WHOLE server for Minutes
 -- Kind = "Turbo"       -> gives Amount turbo boosts
+-- Kind = "Candy"       -> gives Amount Halloween candy
+-- Kind = "LegendaryPet"-> a random Legendary pet (5% Secret)
 ----------------------------------------------------------------------
 Monetization.Products = {
 	{
@@ -183,6 +222,39 @@ Monetization.Products = {
 		Minutes = 10,
 		Color = Color3.fromRGB(40, 200, 255),
 	},
+	-- Update 2: pets & Halloween
+	{
+		Key = "LegendaryPet",
+		Id = 0, -- << product id
+		Price = 299,
+		Name = "Legendary Pet",
+		Icon = "🌟",
+		Desc = "Get a random Legendary pet (5% chance: SECRET)!",
+		Kind = "LegendaryPet",
+		Color = Color3.fromRGB(255, 190, 40),
+	},
+	{
+		Key = "CandySmall",
+		Id = 0, -- << product id
+		Price = 49,
+		Name = "Bag of Candy",
+		Icon = "🍬",
+		Desc = "+250 Halloween candy",
+		Kind = "Candy",
+		Amount = 250,
+		Color = Color3.fromRGB(255, 140, 40),
+	},
+	{
+		Key = "CandyLarge",
+		Id = 0, -- << product id
+		Price = 149,
+		Name = "Cauldron of Candy",
+		Icon = "🎃",
+		Desc = "+1,000 Halloween candy",
+		Kind = "Candy",
+		Amount = 1000,
+		Color = Color3.fromRGB(240, 110, 30),
+	},
 }
 
 ----------------------------------------------------------------------
@@ -194,6 +266,7 @@ Monetization.Perks = {
 	BoostMult = 2,
 	MegaStartRadius = 2,
 	LuckyCharmCrit = 0.10,
+	LuckyEggsLuck = 1.5,
 }
 
 -- lookup tables

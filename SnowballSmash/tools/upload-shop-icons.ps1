@@ -2,6 +2,7 @@
 #
 # HOW TO RUN (Windows):
 #   1. Put this script and the "shop-icons" folder (VIP.png, Turbo5.png, ...) in the same folder.
+#      If shop-ids.txt (from create-shop-items.ps1) is in that folder too, its IDs are used.
 #   2. You need an Open Cloud API key with WRITE access to "game-passes" and
 #      "developer-products" for your game (the same kind of key as for create-shop-items.ps1).
 #      If you deleted the old one, make a new one: create.roblox.com/dashboard/credentials
@@ -25,6 +26,10 @@ $passes = [ordered]@{
     MegaStart   = "2025675230"
     LuckyCharm  = "2026497223"
     RainbowBall = "2025657163"
+    TripleHatch = ""
+    AutoHatch   = ""
+    LuckyEggs   = ""
+    ExtraPets   = ""
 }
 $products = [ordered]@{
     Turbo5      = "3718165483"
@@ -36,6 +41,20 @@ $products = [ordered]@{
     Boost15     = "3718165511"
     Boost60     = "3718165517"
     ServerStorm = "3718165522"
+    LegendaryPet = ""
+    CandySmall  = ""
+    CandyLarge  = ""
+}
+
+# IDs from shop-ids.txt (made by create-shop-items.ps1) fill in / override the list above
+$idFile = Join-Path $PSScriptRoot "shop-ids.txt"
+if (Test-Path $idFile) {
+    foreach ($line in Get-Content $idFile) {
+        if ($line -match '^(\w+)\s*=\s*(\d+)') {
+            if ($passes.Contains($Matches[1])) { $passes[$Matches[1]] = $Matches[2] }
+            if ($products.Contains($Matches[1])) { $products[$Matches[1]] = $Matches[2] }
+        }
+    }
 }
 
 $iconDir = Join-Path $PSScriptRoot "shop-icons"
@@ -70,6 +89,7 @@ function Send-Icon($url, $file) {
 $failed = 0
 function Upload-All($items, $urlBase) {
     foreach ($key in $items.Keys) {
+        if (-not $items[$key]) { Write-Host " skip $key (no ID yet - run create-shop-items.ps1 first)" -ForegroundColor DarkYellow; continue }
         $file = Join-Path $iconDir "$key.png"
         if (-not (Test-Path $file)) { Write-Host " MISSING $key.png" -ForegroundColor Red; $script:failed++; continue }
         try {

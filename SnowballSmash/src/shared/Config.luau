@@ -165,6 +165,7 @@ export type Skin = {
 	Transparency: number,
 	Trail: Color3,
 	Pass: string?, -- game pass key needed instead of coins (see Monetization)
+	Currency: string?, -- "Candy" = bought with Halloween candy instead of coins
 	Rainbow: boolean?,
 }
 
@@ -183,12 +184,42 @@ Config.Skins = {
 		Material = Enum.Material.Neon, Transparency = 0, Trail = Color3.fromRGB(180, 120, 255) },
 	{ Id = "Rainbow", Name = "Rainbow Ball", Price = 0, Bonus = 0.5, Color = Color3.fromRGB(255, 80, 80), Clump = Color3.fromRGB(255, 255, 255),
 		Material = Enum.Material.Neon, Transparency = 0, Trail = Color3.fromRGB(255, 255, 255), Pass = "RainbowBall", Rainbow = true },
+	{ Id = "Pumpkin", Name = "Pumpkin Ball", Price = 750, Currency = "Candy", Bonus = 0.75, Color = Color3.fromRGB(255, 130, 20), Clump = Color3.fromRGB(60, 160, 60),
+		Material = Enum.Material.SmoothPlastic, Transparency = 0, Trail = Color3.fromRGB(255, 160, 40) },
 } :: { Skin }
 
 Config.SkinById = {} :: { [string]: Skin }
 for _, skin in Config.Skins do
 	Config.SkinById[skin.Id] = skin
 end
+
+----------------------------------------------------------------------
+-- HALLOWEEN EVENT
+-- Enabled = true: pumpkins + ghost snowmen on the mountain drop Candy,
+-- the Spooky Egg and the Pumpkin Ball skin show up, the lobby gets pumpkins.
+-- NightLook = true: spooky orange/purple evening lighting.
+-- Set Enabled = false after Halloween; candy and Halloween pets are kept.
+----------------------------------------------------------------------
+Config.Halloween = {
+	Enabled = true,
+	NightLook = true,
+	SpawnChance = 0.22, -- share of obstacles that are pumpkins / ghost snowmen
+}
+
+----------------------------------------------------------------------
+-- Daily login rewards (7-day streak, then it starts again).
+-- Miss a day and the streak resets to day 1.
+-- Each reward: Coins, Turbos, Candy, and/or Egg = egg id for a free hatch.
+----------------------------------------------------------------------
+Config.Daily = {
+	{ Coins = 1000 },
+	{ Turbos = 1 },
+	{ Coins = 3000 },
+	{ Turbos = 2, Candy = 50 },
+	{ Coins = 8000 },
+	{ Turbos = 3 },
+	{ Coins = 15000, Egg = "Glacier" },
+}
 
 ----------------------------------------------------------------------
 -- Rebirth

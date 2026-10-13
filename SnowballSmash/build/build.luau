@@ -12,6 +12,7 @@ local CFrame = roblox.CFrame
 local Color3 = roblox.Color3
 local Enum = roblox.Enum
 local UDim2 = roblox.UDim2
+local UDim = roblox.UDim
 local ColorSequence = roblox.ColorSequence
 local NumberSequence = roblox.NumberSequence
 
@@ -303,11 +304,159 @@ local function peak(parent, pos, w: number, h: number, color)
 	part(m, { Class = "WedgePart", Name = "Cap", Size = Vector3.new(w * 0.3 + 2, ch, w * 0.15 + 1), CFrame = CFrame.new(pos + Vector3.new(0, h - ch / 2 + 0.6, -w * 0.075)), Color = SNOW_A, Material = Enum.Material.Snow })
 end
 
+----------------------------------------------------------------------
+-- Egg stands (Update 2: pets). Client shows the egg panel when you walk up.
+----------------------------------------------------------------------
+local EGGS = {
+	{ Id = "Frosty", Name = "Frosty Egg", Price = "2,500 coins", Color = rgb(170, 225, 255), X = -45 },
+	{ Id = "Glacier", Name = "Glacier Egg", Price = "40,000 coins", Color = rgb(90, 170, 255), X = -15 },
+	{ Id = "Aurora", Name = "Aurora Egg", Price = "500,000 coins", Color = rgb(190, 120, 255), X = 15 },
+	{ Id = "Spooky", Name = "Spooky Egg", Price = "250 candy", Color = rgb(255, 130, 30), X = 45 },
+}
+local eggFolder = folder(lobby, "Eggs")
+for _, e in EGGS do
+	local m = model(eggFolder, "Egg_" .. e.Id)
+	local base = Vector3.new(e.X, P0.Y, 104)
+	part(m, { Name = "Pedestal", Shape = Enum.PartType.Cylinder, Size = Vector3.new(3, 12, 12), CFrame = CFrame.new(base + Vector3.new(0, 1.5, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color = rgb(120, 140, 175), Material = Enum.Material.Slate })
+	part(m, { Name = "Rim", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.8, 12.6, 12.6), CFrame = CFrame.new(base + Vector3.new(0, 3.1, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color = e.Color, Material = Enum.Material.Neon })
+	local egg = part(m, { Name = "Egg", Size = Vector3.new(7, 9, 7), CFrame = CFrame.new(base + Vector3.new(0, 8, 0)), Color = e.Color })
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = egg
+	for _, spot in { { 1.6, 9.8, -2.6, 1.6 }, { -1.8, 7, -2.9, 1.3 }, { 0.6, 6, -3.2, 1 }, { -1, 10.6, -1.9, 1 } } do
+		part(m, { Name = "Spot", Shape = Enum.PartType.Ball, Size = Vector3.one * spot[4], CFrame = CFrame.new(base + Vector3.new(spot[1], spot[2], spot[3])), Color = WHITE })
+	end
+	m.PrimaryPart = egg
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(240, 80)
+	gui.StudsOffset = Vector3.new(0, 7.5, 0)
+	gui.MaxDistance = 90
+	gui.LightInfluence = 0
+	gui.Parent = egg
+	for i, info in { { e.Name, 46, WHITE }, { e.Price, 30, rgb(255, 220, 80) } } do
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.new(1, 0, 0, info[2])
+		label.Position = UDim2.fromOffset(0, if i == 1 then 0 else 46)
+		label.Font = Enum.Font.FredokaOne
+		label.TextScaled = true
+		label.Text = info[1]
+		label.TextColor3 = info[3]
+		label.Parent = gui
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 3
+		stroke.Color = rgb(28, 18, 12)
+		stroke.Parent = label
+	end
+end
+
+----------------------------------------------------------------------
+-- Global leaderboards (filled by the server every minute)
+----------------------------------------------------------------------
+local boardsFolder = folder(lobby, "Leaderboards")
+for _, b in { { Name = "DistanceBoard", Title = "🏁 TOP DISTANCE", X = -76, Dir = 1 }, { Name = "CoinsBoard", Title = "💰 TOP COINS EARNED", X = 76, Dir = -1 } } do
+	local m = model(boardsFolder, b.Name)
+	local pos = Vector3.new(b.X, P0.Y + 15, 70)
+	local cf = CFrame.lookAt(pos, pos + Vector3.new(b.Dir, 0, 0))
+	for _, side in { -1, 1 } do
+		part(m, { Name = "Post", Size = Vector3.new(2, 30, 2), CFrame = cf * CFrame.new(side * 12, 0, 0.8), Color = rgb(98, 60, 38), Material = Enum.Material.Wood })
+	end
+	local board = part(m, { Name = "Board", Size = Vector3.new(24, 28, 1), CFrame = cf, Color = rgb(98, 60, 38), Material = Enum.Material.WoodPlanks })
+	part(m, { Name = "Snow", Size = Vector3.new(25, 1.2, 2.4), CFrame = cf * CFrame.new(0, 14.4, 0), Color = SNOW_A, Material = Enum.Material.Snow })
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 25
+	gui.LightInfluence = 0
+	gui.Parent = board
+	local title = Instance.new("TextLabel")
+	title.BackgroundColor3 = YELLOW
+	title.Size = UDim2.new(1, -40, 0, 80)
+	title.Position = UDim2.fromOffset(20, 18)
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.Text = b.Title
+	title.TextColor3 = WHITE
+	title.Parent = gui
+	local tStroke = Instance.new("UIStroke")
+	tStroke.Thickness = 4
+	tStroke.Color = rgb(28, 18, 12)
+	tStroke.Parent = title
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 16)
+	corner.Parent = title
+	local list = Instance.new("Frame")
+	list.Name = "List"
+	list.BackgroundTransparency = 1
+	list.Size = UDim2.new(1, -40, 1, -130)
+	list.Position = UDim2.fromOffset(20, 115)
+	list.Parent = gui
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = list
+	for i = 1, 10 do
+		local row = Instance.new("Frame")
+		row.Name = "Row" .. i
+		row.LayoutOrder = i
+		row.Size = UDim2.new(1, 0, 0, 50)
+		row.BackgroundColor3 = if i == 1 then rgb(255, 205, 60) elseif i == 2 then rgb(200, 210, 225) elseif i == 3 then rgb(215, 140, 80) else rgb(70, 42, 26)
+		row.Parent = list
+		local rc = Instance.new("UICorner")
+		rc.CornerRadius = UDim.new(0, 10)
+		rc.Parent = row
+		for _, col in { { "Rank", "#" .. i, 0, 0.14, Enum.TextXAlignment.Center }, { "PlayerName", "-", 0.15, 0.55, Enum.TextXAlignment.Left }, { "Value", "", 0.7, 0.28, Enum.TextXAlignment.Right } } do
+			local label = Instance.new("TextLabel")
+			label.Name = col[1]
+			label.BackgroundTransparency = 1
+			label.Size = UDim2.new(col[4], 0, 1, -10)
+			label.Position = UDim2.new(col[3], 0, 0, 5)
+			label.Font = Enum.Font.FredokaOne
+			label.TextScaled = true
+			label.Text = col[2]
+			label.TextColor3 = WHITE
+			label.TextXAlignment = col[5]
+			label.Parent = row
+			local st = Instance.new("UIStroke")
+			st.Thickness = 2.5
+			st.Color = rgb(28, 18, 12)
+			st.Parent = label
+		end
+	end
+end
+
+----------------------------------------------------------------------
+-- Halloween decorations (the server removes them when the event is off)
+----------------------------------------------------------------------
+local spooky = folder(lobby, "Halloween")
+local function pumpkin(pos, s)
+	local m = model(spooky, "Pumpkin")
+	for i = -2, 2 do
+		part(m, { Name = "Body", Shape = Enum.PartType.Ball, Size = Vector3.new(2.6, 4.6, 4.6) * s, CFrame = CFrame.new(pos + Vector3.new(i * 0.85 * s, 2.3 * s, 0)) * CFrame.Angles(0, i * 0.35, 0), Color = if i % 2 == 0 then rgb(255, 130, 20) else rgb(240, 110, 15) })
+	end
+	part(m, { Name = "Stem", Size = Vector3.new(0.7, 1.4, 0.7) * s, CFrame = CFrame.new(pos + Vector3.new(0, 4.9 * s, 0)), Color = rgb(70, 120, 40) })
+	for _, eye in { -0.9, 0.9 } do
+		part(m, { Name = "Eye", Size = Vector3.new(0.9, 0.7, 0.3) * s, CFrame = CFrame.new(pos + Vector3.new(eye * s, 2.9 * s, -2.25 * s)), Color = rgb(255, 230, 90), Material = Enum.Material.Neon })
+	end
+	part(m, { Name = "Mouth", Size = Vector3.new(2.2, 0.5, 0.3) * s, CFrame = CFrame.new(pos + Vector3.new(0, 1.7 * s, -2.25 * s)), Color = rgb(255, 230, 90), Material = Enum.Material.Neon })
+	local light = Instance.new("PointLight")
+	light.Color = rgb(255, 160, 60)
+	light.Range = 14 * s
+	light.Brightness = 1.5
+	light.Parent = m:FindFirstChild("Mouth")
+end
+for _, p in { { -20, 30, 1.2 }, { 20, 30, 1 }, { -60, 40, 1.4 }, { 60, 45, 1.2 }, { -30, 92, 0.9 }, { 30, 92, 0.9 }, { 0, 120, 1.6 }, { -84, 110, 1.3 }, { 84, 110, 1.3 } } do
+	pumpkin(Vector3.new(p[1], P0.Y, p[2]), p[3])
+end
+
 -- trees around the plaza
-for _ = 1, 22 do
+for _ = 1, 48 do
 	local x = rand(-PLAZA_W / 2 + 6, PLAZA_W / 2 - 6)
 	local z = rand(30, PLAZA_D - 6)
-	if math.abs(x) > 24 or z > 80 then
+	-- keep clear of the pad, spawn, egg row (z ~ 100) and the leaderboards (x ~ +-72)
+	local nearEggs = z > 86 and math.abs(x) < 72
+	local nearBoards = math.abs(x) > 56 and z > 48 and z < 92
+	if (math.abs(x) > 24 or z > 80) and not nearEggs and not nearBoards then
 		if not (math.abs(x) < 10 and math.abs(z - 60) < 10) then
 			pineTree(decor, CFrame.new(x, P0.Y, z) * CFrame.Angles(0, rand(0, 6), 0), rand(1, 1.6))
 		end
@@ -395,9 +544,10 @@ module(shared, "Config", "src/shared/Config.luau")
 module(shared, "Monetization", "src/shared/Monetization.luau")
 module(shared, "Sounds", "src/shared/Sounds.luau")
 module(shared, "CourseGen", "src/shared/CourseGen.luau")
+module(shared, "Pets", "src/shared/Pets.luau")
 
 local remotes = folder(replicated, "Remotes")
-for _, name in { "GetData", "StartRun", "FinishRun", "BuyUpgrade", "BuySkin", "Rebirth", "UseTurbo", "AdminAction" } do
+for _, name in { "GetData", "StartRun", "FinishRun", "BuyUpgrade", "BuySkin", "Rebirth", "UseTurbo", "AdminAction", "HatchEgg", "PetAction", "ClaimDaily", "RedeemCode" } do
 	local r = Instance.new("RemoteFunction")
 	r.Name = name
 	r.Parent = remotes
@@ -421,6 +571,7 @@ server.Name = "GameServer"
 server.Source = read("src/server/GameServer.server.luau")
 server.Parent = serverScripts
 module(serverScripts, "AdminConfig", "src/server/AdminConfig.luau")
+module(serverScripts, "Codes", "src/server/Codes.luau")
 
 local sps = starterPlayer:FindFirstChildOfClass("StarterPlayerScripts")
 if not sps then
@@ -431,7 +582,7 @@ local client = Instance.new("LocalScript")
 client.Name = "SnowballClient"
 client.Source = read("src/client/Main.client.luau")
 client.Parent = sps
-for _, name in { "UIKit", "Effects", "Hud", "Panels", "UpgradeTree", "CourseBuilder", "Runner" } do
+for _, name in { "UIKit", "Effects", "Hud", "Panels", "UpgradeTree", "CourseBuilder", "Runner", "PetsUI", "DailyUI" } do
 	module(client, name, "src/client/" .. name .. ".luau")
 end
 

@@ -42,10 +42,28 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
   background, coins count up, and the hex upgrade tree pans and zooms smoothly. It all scales
   to any screen size.
 * **Upgrade tree:** 11 branches and 45 upgrades.
-* **Robux shop:** 6 game passes and 9 developer products (see below), plus coin skins.
+* **Robux shop:** 10 game passes and 12 developer products (see below), plus coin and candy skins.
 * **Rebirth:** reset for +50% coins per rebirth.
 * **Admin panel:** announcements, server storms, and giving coins, turbos or game passes.
 * **Settings / Stats**, DataStore saving, and server-side checks on every purchase and run result.
+
+## Update 2: "Spooky Snow" 🎃
+
+* **🐧 Pets:** walk up to an egg in the lobby (Frosty, Glacier, Aurora and the Halloween
+  Spooky Egg). Press **E** to hatch, **R** for x3 (Triple Hatch pass), or **T** for auto
+  (Auto Hatch pass). There are 23 pets from Common to **Secret**, each giving +% coins, growth
+  or speed. You can equip 3 (5 with the pass), and they follow you and your snowball.
+  The **Pets** menu has Equip, Lock, Delete, Equip Best and Delete Unlocked.
+* **📘 Index:** collect every pet in an egg for a permanent +10% coins.
+* **🎃 Halloween:** pumpkins and ghost snowmen on the mountain drop **🍬 Candy**, which buys the
+  Spooky Egg and the Pumpkin Ball skin. The lobby gets spooky evening lighting and glowing
+  pumpkins. Switch it off after Halloween with `Config.Halloween.Enabled = false`.
+* **🎁 Daily rewards:** a 7-day login streak (`Config.Daily`). **Codes** are redeemed in the
+  same panel; edit them in `ServerScriptService.Codes`.
+* **🏆 Leaderboards:** two global boards in the lobby (Top Distance, Top Coins Earned), updated
+  every minute.
+* **New Robux items:** Triple Hatch, Auto Hatch, Lucky Eggs and +2 Pet Slots passes, plus
+  Legendary Pet, Bag of Candy and Cauldron of Candy products. Admins can also give candy.
 
 ## Robux shop: put your IDs in `ReplicatedStorage.Shared.Monetization`
 

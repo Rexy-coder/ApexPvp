@@ -187,6 +187,37 @@ function Builders.Cabin(m, cf, o)
 	part(m, { Size = Vector3.new(1.8, 4, 1.8), CFrame = cf * CFrame.new(3, H + 4.5, 2), Color = rgb(150, 70, 60), Material = Enum.Material.Brick })
 end
 
+-- Halloween ------------------------------------------------------------
+function Builders.Pumpkin(m, cf, o)
+	cf = cf * CFrame.Angles(0, math.pi + (o.Rot - math.pi) * 0.25, 0)
+	local orange = rgb(255, 130, 20)
+	for i = -2, 2 do
+		part(m, { Shape = Enum.PartType.Ball, Size = Vector3.new(2.6, 4.6, 4.6), CFrame = cf * CFrame.new(i * 0.85, 2.3, 0) * CFrame.Angles(0, i * 0.35, 0), Color = if i % 2 == 0 then orange else rgb(240, 110, 15) })
+	end
+	part(m, { Size = Vector3.new(0.7, 1.4, 0.7), CFrame = cf * CFrame.new(0, 4.9, 0) * CFrame.Angles(0, 0, 0.3), Color = rgb(70, 120, 40) })
+	-- glowing face
+	local glow = rgb(255, 230, 90)
+	part(m, { Size = Vector3.new(0.9, 0.7, 0.3), CFrame = cf * CFrame.new(-0.9, 2.9, -2.25) * CFrame.Angles(0, 0, math.rad(20)), Color = glow, Material = Enum.Material.Neon })
+	part(m, { Size = Vector3.new(0.9, 0.7, 0.3), CFrame = cf * CFrame.new(0.9, 2.9, -2.25) * CFrame.Angles(0, 0, math.rad(-20)), Color = glow, Material = Enum.Material.Neon })
+	part(m, { Size = Vector3.new(2.2, 0.5, 0.3), CFrame = cf * CFrame.new(0, 1.7, -2.25), Color = glow, Material = Enum.Material.Neon })
+	part(m, { Shape = Enum.PartType.Ball, Size = Vector3.new(5, 0.6, 5), CFrame = cf * CFrame.new(0, 4.4, 0), Color = SNOW_A, Material = Enum.Material.Snow })
+end
+
+function Builders.GhostSnowman(m, cf, o)
+	cf = cf * CFrame.Angles(0, math.pi + (o.Rot - math.pi) * 0.12, 0)
+	local ghost = rgb(225, 235, 255)
+	for _, b in { { 4.4, 2.2 }, { 3.3, 5.4 }, { 2.4, 7.9 } } do
+		part(m, { Shape = Enum.PartType.Ball, Size = Vector3.one * b[1], CFrame = cf * CFrame.new(0, b[2], 0), Color = ghost, Material = Enum.Material.SmoothPlastic, Transparency = 0.35 })
+	end
+	local eye = rgb(140, 255, 120)
+	part(m, { Size = Vector3.new(0.45, 0.5, 0.2), CFrame = cf * CFrame.new(-0.45, 8.2, -1.1), Color = eye, Material = Enum.Material.Neon })
+	part(m, { Size = Vector3.new(0.45, 0.5, 0.2), CFrame = cf * CFrame.new(0.45, 8.2, -1.1), Color = eye, Material = Enum.Material.Neon })
+	part(m, { Size = Vector3.new(0.7, 0.5, 0.2), CFrame = cf * CFrame.new(0, 7.4, -1.15), Color = rgb(30, 30, 40) })
+	part(m, { Size = Vector3.new(2.6, 0.3, 2.6), CFrame = cf * CFrame.new(0, 9, 0), Color = rgb(30, 30, 36) })
+	part(m, { Size = Vector3.new(1.7, 1.6, 1.7), CFrame = cf * CFrame.new(0, 9.9, 0), Color = rgb(30, 30, 36) })
+	part(m, { Size = Vector3.new(1.8, 0.35, 1.8), CFrame = cf * CFrame.new(0, 9.35, 0), Color = rgb(255, 130, 20) })
+end
+
 function Builders.Gate(m, cf)
 	local w = WIDTH - 4
 	for r = 0, 3 do
@@ -244,6 +275,7 @@ export type Obstacle = {
 	Top: number,
 	Toughness: number,
 	Coins: number,
+	Candy: number,
 	Mult: number,
 	Model: Model?,
 	Smashed: boolean,
@@ -370,6 +402,7 @@ function CourseBuilder.Build(index: number, parent: Instance, mutationOn: boolea
 			Top = o.H + o.D * 0.5 * TAN,
 			Toughness = o.Tough,
 			Coins = o.Coins,
+			Candy = o.Candy or 0,
 			Mult = mult,
 			Model = m,
 			Smashed = false,

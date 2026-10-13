@@ -35,6 +35,11 @@ local function register(name: string, panel: UIKit.Panel)
 	end
 end
 
+-- other UI modules (pets, daily) add their panels here so only one is open at a time
+function Panels.register(name: string, panel: UIKit.Panel)
+	register(name, panel)
+end
+
 function Panels.anyOpen(): boolean
 	for _, p in panels do
 		if p.IsOpen then
@@ -358,7 +363,7 @@ end
 
 -- skins
 local skinsPage = page("Skins")
-type SkinCard = { Button: UIKit.Button, Ball: Frame, Coin: Frame }
+type SkinCard = { Button: UIKit.Button, Ball: Frame, Coin: Frame, Card: Frame }
 local skinCards: { [string]: SkinCard } = {}
 
 for i, skin in Config.Skins do
@@ -425,7 +430,7 @@ for i, skin in Config.Skins do
 	})
 	b.Label.TextXAlignment = Enum.TextXAlignment.Center
 	local coinIcon = UIKit.coin(b.Face, 26, UDim2.new(0, 12, 0.5, 0), Vector2.new(0, 0.5))
-	skinCards[skin.Id] = { Button = b, Ball = ball, Coin = coinIcon }
+	skinCards[skin.Id] = { Button = b, Ball = ball, Coin = coinIcon, Card = card }
 end
 
 local function refreshShop()
@@ -436,7 +441,10 @@ local function refreshShop()
 	for id, card in skinCards do
 		local skin = Config.SkinById[id]
 		local unlocked = data.Skins[id] or (skin.Pass ~= nil and passOwned[skin.Pass])
-		card.Coin.Visible = not unlocked and skin.Pass == nil
+		local candy = skin.Currency == "Candy"
+		card.Coin.Visible = not unlocked and skin.Pass == nil and not candy
+		-- Halloween skins only show during the event (or once you own them)
+		card.Card.Visible = not candy or Config.Halloween.Enabled or unlocked
 		if data.Skin == id then
 			card.Button.SetText("Equipped")
 			card.Button.SetColors(C.Purple, C.PurpleDark)
@@ -447,6 +455,13 @@ local function refreshShop()
 			local pass = Monetization.PassByKey[skin.Pass]
 			card.Button.SetText("R$ " .. Config.Commas(robuxPrices[skin.Pass] or pass.Price))
 			card.Button.SetColors(C.Green, C.GreenDark)
+		elseif candy then
+			card.Button.SetText("🍬 " .. Config.Short(skin.Price))
+			if (data.Candy or 0) >= skin.Price then
+				card.Button.SetColors(Color3.fromRGB(255, 140, 30), Color3.fromRGB(190, 80, 10))
+			else
+				card.Button.SetColors(C.Grey, C.GreyDark)
+			end
 		else
 			card.Button.SetText(Config.Short(skin.Price))
 			if data.Coins >= skin.Price then
@@ -580,6 +595,9 @@ smallButton(giveSection, "🪙 Give Coins", UDim2.fromOffset(250, 48), UDim2.fro
 end)
 smallButton(giveSection, "🚀 Give Turbos", UDim2.fromOffset(250, 48), UDim2.fromOffset(278, 102), C.Red, C.RedDark, function()
 	admin("GiveTurbos", { Target = targetBox.Text, Amount = tonumber(amountBox.Text) or 5 })
+end)
+smallButton(giveSection, "🍬 Give Candy", UDim2.fromOffset(250, 48), UDim2.fromOffset(542, 102), Color3.fromRGB(255, 140, 30), Color3.fromRGB(190, 80, 10), function()
+	admin("GiveCandy", { Target = targetBox.Text, Amount = tonumber(amountBox.Text) })
 end)
 
 -- game passes

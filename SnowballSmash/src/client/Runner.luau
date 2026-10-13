@@ -226,6 +226,7 @@ local function newRun(stats)
 		BestCombo = 0,
 		Smashed = 0,
 		Coins = 0,
+		Candy = 0,
 		Stats = stats,
 		Time = 0,
 		Stopped = 0,
@@ -346,6 +347,12 @@ local function smash(o, st, center: Vector3)
 	coins = math.floor(coins + 0.5)
 	st.Coins += coins
 	st.Smashed += 1
+	if o.Candy > 0 then
+		st.Candy += o.Candy
+		task.delay(0.15, function()
+			Effects.worldText(surface((o.S0 + o.S1) / 2, (o.X0 + o.X1) / 2) + Vector3.yAxis * (math.min(o.Top, 25) + 6), "+" .. o.Candy .. " 🍬", Color3.fromRGB(255, 150, 40), 55)
+		end)
+	end
 	st.R = math.min(stats.MaxRadius, st.R + 0.12)
 
 	-- feedback
@@ -427,6 +434,16 @@ function Runner.turbo()
 	Effects.shake(1.5)
 end
 
+-- snowball centre + radius while a snowball is out (pets follow it)
+function Runner.getBall(): (Vector3?, number?)
+	local st = run
+	if not st or not ball then
+		return nil, nil
+	end
+	local point, up = surface(st.S, st.X)
+	return point + up * (st.R + st.H + st.RampH), st.R
+end
+
 function Runner.stop()
 	if ball then
 		ball.Model:Destroy()
@@ -456,6 +473,7 @@ local function finish(st)
 		Smashed = st.Smashed,
 		BestCombo = st.BestCombo,
 		SmashCoins = st.Coins,
+		Candy = st.Candy,
 	})
 end
 

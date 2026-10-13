@@ -201,6 +201,14 @@ ITEMS = [
     ("Boost15", (200, 160, 255), (110, 70, 220), (235, 220, 255), "2x COINS", ((255, 255, 255), (230, 210, 255)), "15 MIN"),
     ("Boost60", (185, 140, 255), (90, 50, 200), (230, 215, 255), "2x COINS", ((255, 255, 255), (230, 210, 255)), "1 HOUR"),
     ("ServerStorm", (130, 230, 255), (30, 130, 220), (215, 245, 255), "SERVER x2", ((255, 255, 255), (190, 240, 255)), "10 MIN"),
+    # Update 2: pets & Halloween
+    ("TripleHatch", (140, 215, 255), (50, 120, 230), (215, 240, 255), "TRIPLE HATCH", ((255, 255, 255), (190, 230, 255)), "x3"),
+    ("AutoHatch", (130, 240, 190), (30, 160, 120), (210, 255, 235), "AUTO HATCH", ((255, 255, 255), (190, 255, 220)), "AUTO"),
+    ("LuckyEggs", (150, 240, 150), (30, 150, 80), (215, 255, 215), "LUCKY EGGS", ((255, 255, 255), (190, 255, 190)), "x1.5"),
+    ("ExtraPets", (255, 200, 130), (230, 120, 50), (255, 235, 210), "+2 PETS", ((255, 255, 255), (255, 225, 190)), "+2 SLOTS"),
+    ("LegendaryPet", (255, 225, 110), (220, 140, 20), (255, 245, 200), "LEGENDARY", ((255, 255, 210), (255, 205, 40)), "5% SECRET"),
+    ("CandySmall", (255, 170, 80), (200, 80, 160), (255, 225, 200), "+250", ((255, 230, 160), (255, 160, 40)), None),
+    ("CandyLarge", (255, 150, 60), (140, 60, 200), (255, 215, 190), "+1,000", ((255, 230, 160), (255, 160, 40)), "BEST VALUE"),
 ]
 
 
@@ -251,6 +259,32 @@ def artwork(img, key):
     elif key == "Boost60":
         place(img, emoji("231b", 400), (C[0] - 40, C[1]))
         place(img, emoji("1fa99", 220, 12), (C[0] + 170, C[1] + 100))
+    elif key == "TripleHatch":
+        for (x, y, sz, r) in ((C[0] - 150, C[1] + 40, 230, -12), (C[0] + 150, C[1] + 40, 230, 12), (C[0], C[1] - 20, 270, 0)):
+            place(img, emoji("1f95a", sz, r), (x, y))
+    elif key == "AutoHatch":
+        place(img, emoji("1f95a", 330), (C[0] - 40, C[1] + 10))
+        place(img, emoji("1f501", 220, -10), (C[0] + 170, C[1] + 100))
+    elif key == "LuckyEggs":
+        place(img, emoji("1f95a", 330), (C[0] - 50, C[1] + 20))
+        place(img, emoji("1f340", 230, 15), (C[0] + 170, C[1] - 40))
+        place(img, emoji("2728", 140), (240, 260))
+    elif key == "ExtraPets":
+        place(img, emoji("1f427", 260, -10), (C[0] - 130, C[1] + 30))
+        place(img, emoji("1f989", 260, 10), (C[0] + 130, C[1] + 30))
+        place(img, emoji("1f43e", 160), (C[0], C[1] - 150))
+    elif key == "LegendaryPet":
+        place(img, emoji("1f95a", 300), (C[0], C[1] + 30))
+        place(img, emoji("1f31f", 230), (C[0] + 160, C[1] - 90))
+        place(img, emoji("2728", 150), (C[0] - 190, C[1] - 70))
+    elif key == "CandySmall":
+        place(img, emoji("1f36c", 380, -15), C)
+        place(img, emoji("1f383", 170, 10), (C[0] + 190, C[1] + 110))
+    elif key == "CandyLarge":
+        place(img, emoji("1f383", 330), (C[0] - 40, C[1] + 20))
+        for (x, y, sz, r) in ((C[0] + 170, C[1] - 110, 170, 20), (C[0] - 200, C[1] - 120, 150, -25), (C[0] + 190, C[1] + 110, 160, 0)):
+            place(img, emoji("1f36c", sz, r), (x, y))
+        place(img, emoji("1f47b", 140, 8), (C[0] - 210, C[1] + 120))
     elif key == "ServerStorm":
         place(img, emoji("1f32a-fe0f", 430), (C[0] - 20, C[1]))
         place(img, emoji("1fa99", 180, -20), (C[0] + 200, C[1] - 90))
@@ -275,7 +309,8 @@ if __name__ == "__main__":
     for i, item in enumerate(ITEMS):
         make(item, i).save(f"{OUT}/{item[0]}.png")
     # contact sheet
-    sheet = Image.new("RGB", (5 * 260 + 20, 3 * 260 + 20), (40, 44, 60))
+    rows = (len(ITEMS) + 4) // 5
+    sheet = Image.new("RGB", (5 * 260 + 20, rows * 260 + 20), (40, 44, 60))
     for i, item in enumerate(ITEMS):
         im = Image.open(f"{OUT}/{item[0]}.png").resize((250, 250), Image.LANCZOS)
         sheet.paste(im, (15 + (i % 5) * 260, 15 + (i // 5) * 260), im)

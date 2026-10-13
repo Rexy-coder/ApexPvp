@@ -157,6 +157,27 @@ function Hud.setCoins(amount: number, instant: boolean?)
 		shownCoins = amount
 	end
 end
+local candyLabel = UIKit.label({
+	Name = "Candy",
+	Text = "🍬 0",
+	TextColor3 = Color3.fromRGB(255, 160, 50),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Size = UDim2.fromOffset(150, 30),
+	Position = UDim2.fromOffset(190, 74),
+	Visible = Config.Halloween.Enabled,
+	Stroke = 3,
+	Parent = wallet,
+})
+local lastCandy = 0
+function Hud.setCandy(amount: number)
+	candyLabel.Text = "🍬 " .. Config.Short(amount)
+	candyLabel.Visible = Config.Halloween.Enabled or amount > 0
+	if amount > lastCandy then
+		UIKit.pop(candyLabel, 1.3)
+	end
+	lastCandy = amount
+end
+
 function Hud.setBest(best: number)
 	bestLabel.Text = "🏆 BEST " .. Config.Short(best)
 end
@@ -167,22 +188,24 @@ end
 local menu = new("Frame", {
 	Name = "Menu",
 	BackgroundTransparency = 1,
-	Size = UDim2.fromOffset(196, 390),
+	Size = UDim2.fromOffset(296, 290),
 	AnchorPoint = Vector2.new(0, 0.5),
 	Parent = root,
 })
-makeSlider("Menu", menu, UDim2.new(0, 16, 0.5, 10), UDim2.new(0, -240, 0.5, 10))
+makeSlider("Menu", menu, UDim2.new(0, 16, 0.5, -10), UDim2.new(0, -340, 0.5, -10))
 
 local badges: { [string]: { Alert: Frame, Soon: Frame? } } = {}
 
 local MENU_ITEMS = {
 	{ Name = "Shop", Icon = "🛒", Col = 0, Row = 0 },
 	{ Name = "Upgrades", Icon = "⬆️", Col = 1, Row = 0 },
-	{ Name = "Rebirth", Icon = "🔄", Col = 0, Row = 1 },
-	{ Name = "Index", Icon = "📘", Col = 1, Row = 1, Soon = true },
+	{ Name = "Pets", Icon = "🐧", Col = 2, Row = 0 },
+	{ Name = "Index", Icon = "📘", Col = 0, Row = 1 },
+	{ Name = "Daily", Icon = "🎁", Col = 1, Row = 1 },
+	{ Name = "Rebirth", Icon = "🔄", Col = 2, Row = 1 },
 	{ Name = "Stats", Icon = "📊", Col = 0, Row = 2 },
 	{ Name = "Settings", Icon = "⚙️", Col = 1, Row = 2 },
-	{ Name = "Admin", Icon = "🛡️", Col = 0, Row = 3, AdminOnly = true },
+	{ Name = "Admin", Icon = "🛡️", Col = 2, Row = 2, AdminOnly = true },
 }
 local adminTile: Frame? = nil
 

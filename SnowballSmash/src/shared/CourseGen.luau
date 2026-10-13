@@ -5,6 +5,8 @@
 -- Obstacles get tougher (and pay more) the further down you go, so nobody
 -- can ever reach the bottom.
 
+local Config = require(script.Parent:WaitForChild("Config"))
+
 local CourseGen = {}
 
 CourseGen.Seed = 2026
@@ -36,6 +38,9 @@ CourseGen.Kinds = {
 	IceTower = { W = 5, D = 5, H = 19, Tough = 6, Coins = 70 },
 	Cabin = { W = 17, D = 15, H = 14, Tough = 7, Coins = 90 },
 	Gate = { W = 100, D = 6, H = 20, Tough = 25, Coins = 400 },
+	-- Halloween (only while Config.Halloween.Enabled)
+	Pumpkin = { W = 5.5, D = 5.5, H = 6, Tough = 1, Coins = 20, Candy = 1 },
+	GhostSnowman = { W = 4.6, D = 4.6, H = 11, Tough = 2, Coins = 30, Candy = 2 },
 }
 
 local POOLS = {
@@ -87,6 +92,7 @@ export type ObstacleSpec = {
 	H: number,
 	Tough: number,
 	Coins: number,
+	Candy: number,
 	Variant: number,
 }
 export type PadSpec = { Kind: string, S: number, X: number }
@@ -100,6 +106,7 @@ export type ChunkSpec = {
 	Coins: { CoinSpec },
 	Marker: number?,
 	Value: number,
+	Candy: number,
 }
 
 local cache: { [number]: ChunkSpec } = {}
@@ -122,7 +129,7 @@ function CourseGen.Chunk(index: number): ChunkSpec
 	local s0, s1 = index * L, (index + 1) * L
 	local rng = Random.new(CourseGen.Seed * 7919 + index * 104729)
 	local half = CourseGen.Width / 2 - 8
-	local chunk: ChunkSpec = { Index = index, S0 = s0, S1 = s1, Obstacles = {}, Pads = {}, Coins = {}, Marker = nil, Value = 0 }
+	local chunk: ChunkSpec = { Index = index, S0 = s0, S1 = s1, Obstacles = {}, Pads = {}, Coins = {}, Marker = nil, Value = 0, Candy = 0 }
 	local reserved = {}
 
 	local function addObstacle(kind: string, s: number, x: number)
@@ -137,10 +144,12 @@ function CourseGen.Chunk(index: number): ChunkSpec
 			H = k.H,
 			Tough = k.Tough * CourseGen.ToughScale(s),
 			Coins = math.floor(k.Coins * CourseGen.CoinScale(s) + 0.5),
+			Candy = k.Candy or 0,
 			Variant = rng:NextInteger(1, 4),
 		}
 		table.insert(chunk.Obstacles, o)
 		chunk.Value += o.Coins
+		chunk.Candy += o.Candy
 	end
 
 	-- gate across the slope
@@ -194,6 +203,10 @@ function CourseGen.Chunk(index: number): ChunkSpec
 			local used = {}
 			for _ = 1, perRow do
 				local kind = pool[rng:NextInteger(1, #pool)]
+				local spooky = rng:NextNumber()
+				if Config.Halloween.Enabled and spooky < Config.Halloween.SpawnChance then
+					kind = if spooky < Config.Halloween.SpawnChance * 0.6 then "Pumpkin" else "GhostSnowman"
+				end
 				local x = rng:NextNumber(-half, half)
 				if kind == "Cabin" then
 					x = math.clamp(x, -half + 4, half - 4)
@@ -231,6 +244,15 @@ function CourseGen.ValueUpTo(s: number, pickupValue: number): number
 	for i = 0, last do
 		local chunk = CourseGen.Chunk(i)
 		total += chunk.Value + #chunk.Coins * pickupValue
+	end
+	return total
+end
+
+-- Most Halloween candy a run up to distance `s` could collect
+function CourseGen.CandyUpTo(s: number): number
+	local total = 0
+	for i = 0, math.floor(math.max(0, s) / CourseGen.ChunkLength) do
+		total += CourseGen.Chunk(i).Candy
 	end
 	return total
 end

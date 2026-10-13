@@ -28,6 +28,8 @@ local Hud = require(script:WaitForChild("Hud"))
 local Panels = require(script:WaitForChild("Panels"))
 local UpgradeTree = require(script:WaitForChild("UpgradeTree"))
 local Runner = require(script:WaitForChild("Runner"))
+local PetsUI = require(script:WaitForChild("PetsUI"))
+local DailyUI = require(script:WaitForChild("DailyUI"))
 
 local C = UIKit.Colors
 
@@ -42,6 +44,10 @@ local SetSetting = Remotes:WaitForChild("SetSetting") :: RemoteEvent
 local UseTurbo = Remotes:WaitForChild("UseTurbo") :: RemoteFunction
 local AdminAction = Remotes:WaitForChild("AdminAction") :: RemoteFunction
 local Notify = Remotes:WaitForChild("Notify") :: RemoteEvent
+local HatchEgg = Remotes:WaitForChild("HatchEgg") :: RemoteFunction
+local PetAction = Remotes:WaitForChild("PetAction") :: RemoteFunction
+local ClaimDaily = Remotes:WaitForChild("ClaimDaily") :: RemoteFunction
+local RedeemCode = Remotes:WaitForChild("RedeemCode") :: RemoteFunction
 
 local function serverNow(): number
 	return Workspace:GetServerTimeNow()
@@ -74,6 +80,9 @@ local function apply(newData)
 	Hud.setCoins(newData.Coins, first)
 	Hud.setBest(newData.BestEarn)
 	Hud.setTurbos(newData.Turbos or 0)
+	Hud.setCandy(newData.Candy or 0)
+	PetsUI.refresh(newData)
+	DailyUI.refresh(newData)
 	Panels.refresh(newData)
 	UpgradeTree.refresh(newData)
 	Hud.setAlert("Upgrades", UpgradeTree.anyAffordable(newData))
@@ -268,6 +277,12 @@ Notify.OnClientEvent:Connect(function(kind: string, payload)
 	elseif kind == "Gift" then
 		Hud.announce("🎁 GIFT", tostring(payload.Text), C.Green)
 		Effects.play("Purchase", 1.3)
+	elseif kind == "PetGranted" and type(payload.Pets) == "table" then
+		task.spawn(function()
+			PetsUI.Busy = true
+			PetsUI.playHatch("Aurora", payload.Pets, {})
+			PetsUI.Busy = false
+		end)
 	end
 end)
 
@@ -414,6 +429,9 @@ Runner.OnFinish = function(report)
 		if result.NewBest and result.Earned > 0 then
 			Effects.play("NewBest", 1)
 		end
+		if (result.Candy or 0) > 0 then
+			Hud.toast("+" .. result.Candy .. " 🍬 candy!", Color3.fromRGB(255, 140, 30))
+		end
 		Hud.setMode("Result")
 		setMode("Result")
 		Panels.showResult(result, function()
@@ -441,8 +459,6 @@ Hud.Callbacks.Menu = function(name: string)
 	end
 	if name == "Upgrades" then
 		Hud.Callbacks.Upgrade()
-	elseif name == "Index" then
-		Hud.toast("Coming soon!", C.Blue)
 	else
 		Panels.open(name)
 	end
@@ -512,6 +528,133 @@ if prompt then
 end
 
 ----------------------------------------------------------------------
+-- Pets, eggs, daily rewards, codes
+----------------------------------------------------------------------
+PetsUI.BallTarget = Runner.getBall
+
+local function newPetsAmong(results, before)
+	local fresh = {}
+	for _, id in results do
+		if not before[id] then
+			fresh[id] = true
+		end
+	end
+	return fresh
+end
+
+local function snapshotIndex()
+	local copy = {}
+	if data then
+		for id in data.Index do
+			copy[id] = true
+		end
+	end
+	return copy
+end
+
+PetsUI.Callbacks.Hatch = function(eggId: string, count: number, fast: boolean?): boolean
+	if PetsUI.Busy or mode ~= "Idle" then
+		return false
+	end
+	PetsUI.Busy = true
+	local before = snapshotIndex()
+	local ok, result = HatchEgg:InvokeServer(eggId, count)
+	if ok and type(result) == "table" then
+		PetsUI.playHatch(eggId, result, newPetsAmong(result, before), fast)
+	elseif result then
+		errorToast(result)
+	end
+	PetsUI.Busy = false
+	return ok == true
+end
+
+PetsUI.Callbacks.Action = function(action: string, uid: string?)
+	local ok, message = PetAction:InvokeServer(action, uid)
+	if ok then
+		Effects.play("Click", 1.3)
+	elseif message then
+		errorToast(message)
+	end
+end
+
+PetsUI.Callbacks.BuyPass = function(key: string)
+	buyRobux("Pass", key)
+end
+
+local function showRewardPet(eggId: string?, petId: string?, before)
+	if petId and eggId then
+		PetsUI.Busy = true
+		PetsUI.playHatch(eggId, { petId }, newPetsAmong({ petId }, before))
+		PetsUI.Busy = false
+	end
+end
+
+DailyUI.Callbacks.Claim = function()
+	local before = snapshotIndex()
+	local ok, result = ClaimDaily:InvokeServer()
+	if ok and type(result) == "table" then
+		Effects.play("Purchase", 1.2)
+		Hud.toast("Day " .. result.Day .. " reward claimed! 🎁", C.Green)
+		local reward = Config.Daily[result.Day]
+		if result.Pet then
+			Panels.closeAll()
+			showRewardPet(reward and reward.Egg, result.Pet, before)
+		end
+	else
+		errorToast(result or "Can't claim yet")
+	end
+end
+
+DailyUI.Callbacks.Redeem = function(code: string)
+	if code == "" then
+		return
+	end
+	local before = snapshotIndex()
+	local ok, result = RedeemCode:InvokeServer(code)
+	if ok and type(result) == "table" then
+		Effects.play("Purchase", 1.3)
+		Hud.toast("Code redeemed! 🎉", C.Green)
+		if result.Pet then
+			Panels.closeAll()
+			showRewardPet(result.Reward and result.Reward.Egg, result.Pet, before)
+		end
+	else
+		errorToast(result or "That code doesn't work")
+	end
+end
+
+-- open the Daily panel once on join if a reward is waiting
+task.spawn(function()
+	while not data do
+		task.wait(0.5)
+	end
+	task.wait(2.5)
+	local _, can = DailyUI.status(data)
+	if can and mode == "Idle" and not Panels.anyOpen() then
+		Panels.open("Daily")
+	end
+end)
+
+-- Halloween evening look
+if Config.Halloween.Enabled and Config.Halloween.NightLook then
+	local Lighting = game:GetService("Lighting")
+	Lighting.ClockTime = 17.6
+	Lighting.Brightness = 2.2
+	Lighting.Ambient = Color3.fromRGB(120, 90, 140)
+	Lighting.OutdoorAmbient = Color3.fromRGB(150, 120, 170)
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	if atmosphere then
+		atmosphere.Color = Color3.fromRGB(255, 170, 120)
+		atmosphere.Decay = Color3.fromRGB(120, 70, 150)
+		atmosphere.Density = 0.32
+	end
+	local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
+	if cc then
+		cc.TintColor = Color3.fromRGB(255, 235, 225)
+	end
+end
+
+----------------------------------------------------------------------
 -- Input
 ----------------------------------------------------------------------
 local function isChargeInput(input: InputObject): boolean
@@ -531,7 +674,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	end
 	local key = input.KeyCode
 	if mode == "Idle" and not Panels.anyOpen() and not UpgradeTree.IsOpen then
-		if key == Enum.KeyCode.E then
+		if key == Enum.KeyCode.E and not PetsUI.NearEgg then
 			startCharge()
 		elseif key == Enum.KeyCode.U then
 			Hud.Callbacks.Upgrade()
