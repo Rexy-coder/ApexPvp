@@ -22,24 +22,27 @@ img = Image.open("docs/art/thumbnail_1920x1080.png").convert("RGBA")
 # darken a little so the clock stands out, but keep the picture visible
 img.alpha_composite(Image.new("RGBA", (W, H), (10, 15, 40, 95)))
 
-# flat 2D clock: white face, black hands (like a simple clock icon)
+# flat 2D clock: black face, two hands at 90 degrees (12 and 3 o'clock),
+# the quarter between the hands is white
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 d = ImageDraw.Draw(img)
 cx, cy, r = W / 2, 430, 270
-d.ellipse([cx - r - 14, cy - r - 14, cx + r + 14, cy + r + 14], fill=BLACK)  # thin black rim
-d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE)  # white face
-
-
-def hand(x2, y2, width):
-    d.line([cx, cy, x2, y2], fill=BLACK, width=width)
-    for x, y in ((cx, cy), (x2, y2)):  # rounded ends
-        d.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=BLACK)
-
-
+d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=BLACK)
+hand_len = r * 0.72
 hw = 52
-hand(cx, cy - r * 0.62, hw)  # straight up (12)
-hand(cx + r * 0.46, cy + r * 0.46, hw)  # down-right
+# white quarter between the hands (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
+d.pieslice([cx - hand_len, cy - hand_len, cx + hand_len, cy + hand_len], -90, 0, fill=WHITE)
+
+
+def hand(x2, y2):
+    d.line([cx, cy, x2, y2], fill=WHITE, width=hw)
+    for x, y in ((cx, cy), (x2, y2)):  # rounded ends
+        d.ellipse([x - hw / 2, y - hw / 2, x + hw / 2, y + hw / 2], fill=WHITE)
+
+
+hand(cx, cy - hand_len)  # 12 o'clock
+hand(cx + hand_len, cy)  # 3 o'clock
 
 
 # straight black-and-white text under the clock
