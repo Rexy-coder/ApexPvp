@@ -22,18 +22,20 @@ img = Image.open("docs/art/thumbnail_1920x1080.png").convert("RGBA")
 # darken a little so the clock stands out, but keep the picture visible
 img.alpha_composite(Image.new("RGBA", (W, H), (10, 15, 40, 95)))
 
-# flat 2D clock: white face, two hands at 90 degrees (12 and 3 o'clock),
-# the quarter between the hands is black
+# flat 2D clock: black face, two hands at 90 degrees (12 and 3 o'clock),
+# the quarter between the hands is white
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+FACE = BLACK  # clock face and rim
+MARK = WHITE  # quarter and hands
 d = ImageDraw.Draw(img)
 cx, cy, r = W / 2, 430, 270
-d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE)
-rim = 20  # white ring that stays around the edge
+d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=FACE)
+rim = 20  # ring of face colour that stays around the edge
 hw = 46  # hand thickness
 hand_len = r - rim - hw / 2
-# black quarter between the hands (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
-d.pieslice([cx - r + rim, cy - r + rim, cx + r - rim, cy + r - rim], -90, 0, fill=BLACK)
+# quarter between the hands (PIL angles: 0 = 3 o'clock, -90 = 12 o'clock)
+d.pieslice([cx - r + rim, cy - r + rim, cx + r - rim, cy + r - rim], -90, 0, fill=MARK)
 
 
 def stroke(points, width, color):
@@ -43,9 +45,9 @@ def stroke(points, width, color):
 
 
 hands = [(cx, cy - hand_len), (cx + hand_len, cy)]
-# the hands: thick black lines with rounded ends, joined to the black quarter
+# the hands: thick lines with rounded ends, joined to the quarter
 for tip in hands:
-    stroke([(cx, cy), tip], hw, BLACK)
+    stroke([(cx, cy), tip], hw, MARK)
 
 
 # straight black-and-white text under the clock
