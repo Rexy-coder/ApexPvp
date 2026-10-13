@@ -22,37 +22,29 @@ img = Image.open("docs/art/thumbnail_1920x1080.png").convert("RGBA")
 # darken a little so the clock stands out, but keep the picture visible
 img.alpha_composite(Image.new("RGBA", (W, H), (10, 15, 40, 95)))
 
-# flat 2D clock
+# flat 2D clock: white face, black hands (like a simple clock icon)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
 d = ImageDraw.Draw(img)
-cx, cy, r = W / 2, 430, 260
-d.ellipse([cx - r - 22, cy - r - 22, cx + r + 22, cy + r + 22], fill=OUTLINE)  # outline
-d.ellipse([cx - r - 8, cy - r - 8, cx + r + 8, cy + r + 8], fill=(255, 205, 40))  # yellow rim
-d.ellipse([cx - r + 18, cy - r + 18, cx + r - 18, cy + r - 18], fill=OUTLINE)
-d.ellipse([cx - r + 28, cy - r + 28, cx + r - 28, cy + r - 28], fill=(255, 255, 255))  # face
-# tick marks
-for i in range(60):
-    a = i / 60 * 2 * math.pi
-    big = i % 5 == 0
-    r1 = r - 50
-    r2 = r - (100 if big else 68)
-    w = 16 if big else 6
-    d.line([cx + math.sin(a) * r1, cy - math.cos(a) * r1, cx + math.sin(a) * r2, cy - math.cos(a) * r2],
-           fill=OUTLINE, width=w)
-# hands (10:10)
-def hand(angle_deg, length, width, color):
-    a = math.radians(angle_deg)
-    d.line([cx, cy, cx + math.sin(a) * length, cy - math.cos(a) * length], fill=color, width=width)
-    d.ellipse([cx + math.sin(a) * length - width / 2, cy - math.cos(a) * length - width / 2,
-               cx + math.sin(a) * length + width / 2, cy - math.cos(a) * length + width / 2], fill=color)
+cx, cy, r = W / 2, 430, 270
+d.ellipse([cx - r - 14, cy - r - 14, cx + r + 14, cy + r + 14], fill=BLACK)  # thin black rim
+d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE)  # white face
 
-hand(305, 130, 30, OUTLINE)  # hour hand
-hand(60, 185, 22, OUTLINE)  # minute hand
-d.ellipse([cx - 30, cy - 30, cx + 30, cy + 30], fill=OUTLINE)
-d.ellipse([cx - 16, cy - 16, cx + 16, cy + 16], fill=(235, 55, 60))
 
-# straight text under the clock
-art.title_text(img, TEXT, art.TITLE_FONT, 220, (W / 2, 880), rot=0, top=(255, 255, 255), bottom=(255, 210, 60),
-               outline=OUTLINE, stroke=22)
+def hand(x2, y2, width):
+    d.line([cx, cy, x2, y2], fill=BLACK, width=width)
+    for x, y in ((cx, cy), (x2, y2)):  # rounded ends
+        d.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=BLACK)
+
+
+hw = 52
+hand(cx, cy - r * 0.62, hw)  # straight up (12)
+hand(cx + r * 0.46, cy + r * 0.46, hw)  # down-right
+
+
+# straight black-and-white text under the clock
+art.title_text(img, TEXT, art.TITLE_FONT, 220, (W / 2, 880), rot=0, top=WHITE, bottom=WHITE,
+               outline=BLACK, stroke=22, shadow=False)
 
 img.convert("RGB").save(OUT)
 print("saved", OUT)
