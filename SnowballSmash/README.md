@@ -41,7 +41,7 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
   Studded buttons sink when pressed and bounce on hover, wooden panels pop open with a blurred
   background, coins count up, and the hex upgrade tree pans and zooms smoothly. It all scales
   to any screen size.
-* **Upgrade tree:** 11 branches and 45 upgrades.
+* **Upgrade tree:** 17 branches and 68 upgrades (incl. Pet Power, Hatch Luck, Egg Discount, Pet Storage, Candy Collector, Turbo Time).
 * **Robux shop:** 10 game passes and 12 developer products (see below), plus coin and candy skins.
 * **Rebirth:** reset for +50% coins per rebirth.
 * **Admin panel:** announcements, server storms, and giving coins, turbos or game passes.

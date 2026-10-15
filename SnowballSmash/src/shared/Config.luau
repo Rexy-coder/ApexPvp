@@ -70,6 +70,19 @@ Config.Branches = {
 		BaseCost = 800, Growth = 3.6, From = "Coin2", Cells = { { -1, 3 }, { -2, 4 }, { -3, 5 } } },
 	{ Id = "Air", Name = "Big Air", Icon = "🎈", Stat = "Ramp height", Desc = "Fly higher off ramps and sail over obstacles.", Per = 25, Unit = "%",
 		BaseCost = 700, Growth = 3.6, From = "Steer2", Cells = { { -2, -1 }, { -2, -2 }, { -2, -3 } } },
+	-- Update 3: pets, eggs, candy and turbo upgrades
+	{ Id = "PetPower", Name = "Pet Power", Icon = "🐾", Stat = "Pet bonuses", Desc = "Your equipped pets give bigger bonuses.", Per = 15, Unit = "%",
+		BaseCost = 5000, Growth = 3.5, From = "Smash4", Cells = { { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 4, 5 } } },
+	{ Id = "HatchLuck", Name = "Hatch Luck", Icon = "🌈", Stat = "Rare+ pet luck", Desc = "Better chance to hatch Rare, Epic, Legendary and Secret pets.", Per = 10, Unit = "%",
+		BaseCost = 8000, Growth = 4, From = "Growth4", Cells = { { 5, -4 }, { 6, -4 }, { 7, -4 }, { 8, -4 } } },
+	{ Id = "EggDiscount", Name = "Egg Discount", Icon = "🏷️", Stat = "Egg price", Desc = "Eggs cost less to hatch.", Per = -5, Unit = "%",
+		BaseCost = 6000, Growth = 3.8, From = "Air3", Cells = { { -3, -3 }, { -4, -3 }, { -5, -3 }, { -6, -3 } } },
+	{ Id = "PetStorage", Name = "Pet Storage", Icon = "🎒", Stat = "Pet storage", Desc = "Hold more pets in your inventory.", Per = 15, Unit = " pets",
+		BaseCost = 3000, Growth = 4, From = "Steer4", Cells = { { -4, -1 }, { -5, -1 }, { -6, -1 } } },
+	{ Id = "Candy", Name = "Candy Collector", Icon = "🍬", Stat = "Candy", Desc = "Get more Halloween candy from pumpkins and ghost snowmen.", Per = 25, Unit = "%",
+		BaseCost = 2000, Growth = 3.5, From = "Steer4", Cells = { { -5, 1 }, { -6, 2 }, { -7, 3 }, { -8, 4 } } },
+	{ Id = "TurboTime", Name = "Turbo Time", Icon = "⏱️", Stat = "Turbo length", Desc = "Your Turbo Boost lasts longer.", Per = 0.5, Unit = "s",
+		BaseCost = 4000, Growth = 4, From = "Boost3", Cells = { { -3, 6 }, { -3, 7 }, { -3, 8 } } },
 } :: { Branch }
 
 local ROMAN = { "I", "II", "III", "IV", "V", "VI", "VII", "VIII" }
@@ -149,6 +162,27 @@ function Config.CanBuy(owned: { [string]: boolean }, nodeId: string): (boolean, 
 		return false, "Requires " .. Config.Nodes[node.Requires].Title
 	end
 	return true, nil
+end
+
+-- Pet / egg / candy perks from the upgrade tree
+function Config.PetPowerMult(owned: { [string]: boolean }): number
+	return 1 + 0.15 * Config.BranchLevel(owned, "PetPower")
+end
+
+function Config.HatchLuckMult(owned: { [string]: boolean }): number
+	return 1 + 0.1 * Config.BranchLevel(owned, "HatchLuck")
+end
+
+function Config.EggPrice(owned: { [string]: boolean }, price: number): number
+	return math.max(1, math.floor(price * (1 - 0.05 * Config.BranchLevel(owned, "EggDiscount")) + 0.5))
+end
+
+function Config.PetStorageBonus(owned: { [string]: boolean }): number
+	return 15 * Config.BranchLevel(owned, "PetStorage")
+end
+
+function Config.CandyMult(owned: { [string]: boolean }): number
+	return 1 + 0.25 * Config.BranchLevel(owned, "Candy")
 end
 
 ----------------------------------------------------------------------
@@ -296,6 +330,7 @@ export type Stats = {
 	Boost: number,
 	Air: number,
 	Mutation: boolean,
+	TurboTime: number,
 }
 
 -- extras: { CoinMult, GrowthMult, LaunchMult, CritBonus, StartRadiusBonus, Mutation }
@@ -320,6 +355,7 @@ function Config.ComputeStats(owned: { [string]: boolean }, rebirths: number, ski
 		Boost = P.BaseBoost * (1 + 0.3 * lv("Boost")),
 		Air = 1 + 0.25 * lv("Air"),
 		Mutation = e.Mutation == true,
+		TurboTime = Config.Turbo.Duration + 0.5 * lv("TurboTime"),
 	}
 end
 

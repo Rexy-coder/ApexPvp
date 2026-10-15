@@ -189,14 +189,16 @@ end
 local function fillEggPanel(eggId: string)
 	local egg = Pets.EggById[eggId]
 	eggTitle.Text = "🥚 " .. egg.Name
-	eggPrice.Text = (if egg.Currency == "Candy" then "🍬 " else "🪙 ") .. Config.Commas(egg.Price)
+	local price = if data then Config.EggPrice(data.Owned, egg.Price) else egg.Price
+	eggPrice.Text = (if egg.Currency == "Candy" then "🍬 " else "🪙 ") .. Config.Commas(price) .. (if price < egg.Price then " 🏷️" else "")
 	eggPrice.TextColor3 = if egg.Currency == "Candy" then Color3.fromRGB(255, 160, 50) else Color3.fromRGB(255, 225, 70)
 	for _, c in oddsRow:GetChildren() do
 		if c:IsA("GuiObject") then
 			c:Destroy()
 		end
 	end
-	local odds = Pets.Odds(eggId, if hasPass("LuckyEggs") then 1.5 else 1)
+	local luck = (if hasPass("LuckyEggs") then 1.5 else 1) * (if data then Config.HatchLuckMult(data.Owned) else 1)
+	local odds = Pets.Odds(eggId, luck)
 	for i, pet in egg.Pets do
 		local known = data ~= nil and data.Index[pet.Id] == true
 		local tile = petTile(oddsRow, pet.Id, Vector2.new(78, 84), false, known or pet.Rarity ~= "Secret")
@@ -530,7 +532,7 @@ local function refreshInventory()
 		end
 		return Pets.Score(a.Pet) > Pets.Score(b.Pet)
 	end)
-	countLabel.Text = string.format("Equipped %d/%d  ·  Pets %d/%d", #data.Equipped, slots(), count, Pets.MaxInventory)
+	countLabel.Text = string.format("Equipped %d/%d  ·  Pets %d/%d", #data.Equipped, slots(), count, Pets.MaxInventory + Config.PetStorageBonus(data.Owned))
 	for i, item in list do
 		local tile = petTile(grid, item.Pet, Vector2.new(118, 140), true)
 		tile.LayoutOrder = i

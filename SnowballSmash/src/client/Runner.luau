@@ -426,7 +426,7 @@ function Runner.turbo()
 	if not st or Runner.State ~= "Rolling" then
 		return
 	end
-	st.TurboUntil = st.Time + Config.Turbo.Duration
+	st.TurboUntil = st.Time + (st.Stats.TurboTime or Config.Turbo.Duration)
 	st.V = math.min(P.MaxSpeed + Config.Turbo.SpeedAdd, st.V + Config.Turbo.SpeedAdd)
 	st.Stopped = 0
 	Effects.play("Boost", 0.8)

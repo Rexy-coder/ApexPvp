@@ -219,10 +219,11 @@ local function extrasFor(player: Player)
 				launch += pet.Launch
 			end
 		end
-		coins += #Pets.CompletedEggs(data.Index) * Pets.IndexBonus
+		local petPower = Config.PetPowerMult(data.Owned)
+		coins = coins * petPower + #Pets.CompletedEggs(data.Index) * Pets.IndexBonus
 		extras.CoinMult *= 1 + coins / 100
-		extras.GrowthMult *= 1 + growth / 100
-		extras.LaunchMult *= 1 + launch / 100
+		extras.GrowthMult *= 1 + growth * petPower / 100
+		extras.LaunchMult *= 1 + launch * petPower / 100
 	end
 	for _, e in Config.Events do
 		if eventActive(e.Id) then
@@ -355,6 +356,11 @@ local function equipSlots(player: Player): number
 	return Pets.BaseEquipSlots + (if hasPass(player, "ExtraPets") then Pets.ExtraSlotsPass else 0)
 end
 
+-- Lucky Eggs pass x Hatch Luck upgrades
+local function hatchLuck(player: Player, data): number
+	return (if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1) * Config.HatchLuckMult(data.Owned)
+end
+
 local function petCount(data): number
 	local n = 0
 	for _ in data.Pets do
@@ -409,7 +415,7 @@ local function grantReward(player: Player, data, reward)
 	data.Turbos += reward.Turbos or 0
 	data.Candy += reward.Candy or 0
 	if reward.Egg and Pets.EggById[reward.Egg] then
-		hatched = Pets.Roll(reward.Egg, if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1, rng)
+		hatched = Pets.Roll(reward.Egg, hatchLuck(player, data), rng)
 		givePet(player, data, hatched)
 	end
 	return hatched
@@ -636,6 +642,7 @@ FinishRun.OnServerInvoke = function(player, report)
 	local candy = 0
 	if Config.Halloween.Enabled then
 		candy = math.clamp(math.floor(tonumber(report.Candy) or 0), 0, CourseGen.CandyUpTo(distance + 50))
+		candy = math.floor(candy * Config.CandyMult(data.Owned))
 		data.Candy += candy
 	end
 	leaderboardDirty[player] = true
@@ -904,17 +911,17 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 	if count == 3 and not hasPass(player, "TripleHatch") then
 		return false, "Needs the Triple Hatch pass!"
 	end
-	if petCount(data) + count > Pets.MaxInventory then
+	if petCount(data) + count > Pets.MaxInventory + Config.PetStorageBonus(data.Owned) then
 		return false, "Pet inventory full! Delete some pets."
 	end
 	local field = if egg.Currency == "Candy" then "Candy" else "Coins"
-	local cost = egg.Price * count
+	local cost = Config.EggPrice(data.Owned, egg.Price) * count
 	if data[field] < cost then
 		return false, if field == "Candy" then "Not enough candy!" else "Not enough coins!"
 	end
 	lastHatch[player] = os.clock()
 	data[field] -= cost
-	local luck = if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1
+	local luck = hatchLuck(player, data)
 	local results = {}
 	for _ = 1, count do
 		local petId = Pets.Roll(egg.Id, luck, rng)

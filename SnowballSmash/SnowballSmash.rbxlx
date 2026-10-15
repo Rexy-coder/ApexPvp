@@ -28690,6 +28690,19 @@ Config.Branches = {
 		BaseCost = 800, Growth = 3.6, From = "Coin2", Cells = { { -1, 3 }, { -2, 4 }, { -3, 5 } } },
 	{ Id = "Air", Name = "Big Air", Icon = "🎈", Stat = "Ramp height", Desc = "Fly higher off ramps and sail over obstacles.", Per = 25, Unit = "%",
 		BaseCost = 700, Growth = 3.6, From = "Steer2", Cells = { { -2, -1 }, { -2, -2 }, { -2, -3 } } },
+	-- Update 3: pets, eggs, candy and turbo upgrades
+	{ Id = "PetPower", Name = "Pet Power", Icon = "🐾", Stat = "Pet bonuses", Desc = "Your equipped pets give bigger bonuses.", Per = 15, Unit = "%",
+		BaseCost = 5000, Growth = 3.5, From = "Smash4", Cells = { { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 4, 5 } } },
+	{ Id = "HatchLuck", Name = "Hatch Luck", Icon = "🌈", Stat = "Rare+ pet luck", Desc = "Better chance to hatch Rare, Epic, Legendary and Secret pets.", Per = 10, Unit = "%",
+		BaseCost = 8000, Growth = 4, From = "Growth4", Cells = { { 5, -4 }, { 6, -4 }, { 7, -4 }, { 8, -4 } } },
+	{ Id = "EggDiscount", Name = "Egg Discount", Icon = "🏷️", Stat = "Egg price", Desc = "Eggs cost less to hatch.", Per = -5, Unit = "%",
+		BaseCost = 6000, Growth = 3.8, From = "Air3", Cells = { { -3, -3 }, { -4, -3 }, { -5, -3 }, { -6, -3 } } },
+	{ Id = "PetStorage", Name = "Pet Storage", Icon = "🎒", Stat = "Pet storage", Desc = "Hold more pets in your inventory.", Per = 15, Unit = " pets",
+		BaseCost = 3000, Growth = 4, From = "Steer4", Cells = { { -4, -1 }, { -5, -1 }, { -6, -1 } } },
+	{ Id = "Candy", Name = "Candy Collector", Icon = "🍬", Stat = "Candy", Desc = "Get more Halloween candy from pumpkins and ghost snowmen.", Per = 25, Unit = "%",
+		BaseCost = 2000, Growth = 3.5, From = "Steer4", Cells = { { -5, 1 }, { -6, 2 }, { -7, 3 }, { -8, 4 } } },
+	{ Id = "TurboTime", Name = "Turbo Time", Icon = "⏱️", Stat = "Turbo length", Desc = "Your Turbo Boost lasts longer.", Per = 0.5, Unit = "s",
+		BaseCost = 4000, Growth = 4, From = "Boost3", Cells = { { -3, 6 }, { -3, 7 }, { -3, 8 } } },
 } :: { Branch }
 
 local ROMAN = { "I", "II", "III", "IV", "V", "VI", "VII", "VIII" }
@@ -28769,6 +28782,27 @@ function Config.CanBuy(owned: { [string]: boolean }, nodeId: string): (boolean, 
 		return false, "Requires " .. Config.Nodes[node.Requires].Title
 	end
 	return true, nil
+end
+
+-- Pet / egg / candy perks from the upgrade tree
+function Config.PetPowerMult(owned: { [string]: boolean }): number
+	return 1 + 0.15 * Config.BranchLevel(owned, "PetPower")
+end
+
+function Config.HatchLuckMult(owned: { [string]: boolean }): number
+	return 1 + 0.1 * Config.BranchLevel(owned, "HatchLuck")
+end
+
+function Config.EggPrice(owned: { [string]: boolean }, price: number): number
+	return math.max(1, math.floor(price * (1 - 0.05 * Config.BranchLevel(owned, "EggDiscount")) + 0.5))
+end
+
+function Config.PetStorageBonus(owned: { [string]: boolean }): number
+	return 15 * Config.BranchLevel(owned, "PetStorage")
+end
+
+function Config.CandyMult(owned: { [string]: boolean }): number
+	return 1 + 0.25 * Config.BranchLevel(owned, "Candy")
 end
 
 ----------------------------------------------------------------------
@@ -28916,6 +28950,7 @@ export type Stats = {
 	Boost: number,
 	Air: number,
 	Mutation: boolean,
+	TurboTime: number,
 }
 
 -- extras: { CoinMult, GrowthMult, LaunchMult, CritBonus, StartRadiusBonus, Mutation }
@@ -28940,6 +28975,7 @@ function Config.ComputeStats(owned: { [string]: boolean }, rebirths: number, ski
 		Boost = P.BaseBoost * (1 + 0.3 * lv("Boost")),
 		Air = 1 + 0.25 * lv("Air"),
 		Mutation = e.Mutation == true,
+		TurboTime = Config.Turbo.Duration + 0.5 * lv("TurboTime"),
 	}
 end
 
@@ -30122,10 +30158,11 @@ local function extrasFor(player: Player)
 				launch += pet.Launch
 			end
 		end
-		coins += #Pets.CompletedEggs(data.Index) * Pets.IndexBonus
+		local petPower = Config.PetPowerMult(data.Owned)
+		coins = coins * petPower + #Pets.CompletedEggs(data.Index) * Pets.IndexBonus
 		extras.CoinMult *= 1 + coins / 100
-		extras.GrowthMult *= 1 + growth / 100
-		extras.LaunchMult *= 1 + launch / 100
+		extras.GrowthMult *= 1 + growth * petPower / 100
+		extras.LaunchMult *= 1 + launch * petPower / 100
 	end
 	for _, e in Config.Events do
 		if eventActive(e.Id) then
@@ -30258,6 +30295,11 @@ local function equipSlots(player: Player): number
 	return Pets.BaseEquipSlots + (if hasPass(player, "ExtraPets") then Pets.ExtraSlotsPass else 0)
 end
 
+-- Lucky Eggs pass x Hatch Luck upgrades
+local function hatchLuck(player: Player, data): number
+	return (if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1) * Config.HatchLuckMult(data.Owned)
+end
+
 local function petCount(data): number
 	local n = 0
 	for _ in data.Pets do
@@ -30312,7 +30354,7 @@ local function grantReward(player: Player, data, reward)
 	data.Turbos += reward.Turbos or 0
 	data.Candy += reward.Candy or 0
 	if reward.Egg and Pets.EggById[reward.Egg] then
-		hatched = Pets.Roll(reward.Egg, if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1, rng)
+		hatched = Pets.Roll(reward.Egg, hatchLuck(player, data), rng)
 		givePet(player, data, hatched)
 	end
 	return hatched
@@ -30539,6 +30581,7 @@ FinishRun.OnServerInvoke = function(player, report)
 	local candy = 0
 	if Config.Halloween.Enabled then
 		candy = math.clamp(math.floor(tonumber(report.Candy) or 0), 0, CourseGen.CandyUpTo(distance + 50))
+		candy = math.floor(candy * Config.CandyMult(data.Owned))
 		data.Candy += candy
 	end
 	leaderboardDirty[player] = true
@@ -30807,17 +30850,17 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 	if count == 3 and not hasPass(player, "TripleHatch") then
 		return false, "Needs the Triple Hatch pass!"
 	end
-	if petCount(data) + count > Pets.MaxInventory then
+	if petCount(data) + count > Pets.MaxInventory + Config.PetStorageBonus(data.Owned) then
 		return false, "Pet inventory full! Delete some pets."
 	end
 	local field = if egg.Currency == "Candy" then "Candy" else "Coins"
-	local cost = egg.Price * count
+	local cost = Config.EggPrice(data.Owned, egg.Price) * count
 	if data[field] < cost then
 		return false, if field == "Candy" then "Not enough candy!" else "Not enough coins!"
 	end
 	lastHatch[player] = os.clock()
 	data[field] -= cost
-	local luck = if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1
+	local luck = hatchLuck(player, data)
 	local results = {}
 	for _ = 1, count do
 		local petId = Pets.Roll(egg.Id, luck, rng)
@@ -36187,7 +36230,7 @@ function Runner.turbo()
 	if not st or Runner.State ~= "Rolling" then
 		return
 	end
-	st.TurboUntil = st.Time + Config.Turbo.Duration
+	st.TurboUntil = st.Time + (st.Stats.TurboTime or Config.Turbo.Duration)
 	st.V = math.min(P.MaxSpeed + Config.Turbo.SpeedAdd, st.V + Config.Turbo.SpeedAdd)
 	st.Stopped = 0
 	Effects.play("Boost", 0.8)
@@ -36634,14 +36677,16 @@ end
 local function fillEggPanel(eggId: string)
 	local egg = Pets.EggById[eggId]
 	eggTitle.Text = "🥚 " .. egg.Name
-	eggPrice.Text = (if egg.Currency == "Candy" then "🍬 " else "🪙 ") .. Config.Commas(egg.Price)
+	local price = if data then Config.EggPrice(data.Owned, egg.Price) else egg.Price
+	eggPrice.Text = (if egg.Currency == "Candy" then "🍬 " else "🪙 ") .. Config.Commas(price) .. (if price < egg.Price then " 🏷️" else "")
 	eggPrice.TextColor3 = if egg.Currency == "Candy" then Color3.fromRGB(255, 160, 50) else Color3.fromRGB(255, 225, 70)
 	for _, c in oddsRow:GetChildren() do
 		if c:IsA("GuiObject") then
 			c:Destroy()
 		end
 	end
-	local odds = Pets.Odds(eggId, if hasPass("LuckyEggs") then 1.5 else 1)
+	local luck = (if hasPass("LuckyEggs") then 1.5 else 1) * (if data then Config.HatchLuckMult(data.Owned) else 1)
+	local odds = Pets.Odds(eggId, luck)
 	for i, pet in egg.Pets do
 		local known = data ~= nil and data.Index[pet.Id] == true
 		local tile = petTile(oddsRow, pet.Id, Vector2.new(78, 84), false, known or pet.Rarity ~= "Secret")
@@ -36975,7 +37020,7 @@ local function refreshInventory()
 		end
 		return Pets.Score(a.Pet) > Pets.Score(b.Pet)
 	end)
-	countLabel.Text = string.format("Equipped %d/%d  ·  Pets %d/%d", #data.Equipped, slots(), count, Pets.MaxInventory)
+	countLabel.Text = string.format("Equipped %d/%d  ·  Pets %d/%d", #data.Equipped, slots(), count, Pets.MaxInventory + Config.PetStorageBonus(data.Owned))
 	for i, item in list do
 		local tile = petTile(grid, item.Pet, Vector2.new(118, 140), true)
 		tile.LayoutOrder = i
