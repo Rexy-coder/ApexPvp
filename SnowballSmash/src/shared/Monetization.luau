@@ -44,7 +44,7 @@ Monetization.Passes = {
 		Price = 199,
 		Name = "Perfect Push",
 		Icon = "🎯",
-		Desc = "The power bar fills to MAX instantly, every time.",
+		Desc = "The power bar fills super fast, every time.",
 		Color = Color3.fromRGB(60, 150, 255),
 	},
 	{
