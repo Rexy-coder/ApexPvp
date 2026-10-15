@@ -261,8 +261,8 @@ def tag(img, text, center, size, fill, rot=0):
     d.rounded_rectangle([o, o * 1.6, pw + o * 3, ph + o * 3.4], radius=size * 0.35, fill=OUTLINE)
     d.rounded_rectangle([o * 2, o * 2, pw + o * 2, ph + o * 2], radius=size * 0.3, fill=fill)
     d.rounded_rectangle([o * 3, o * 2.5, pw + o, ph * 0.5], radius=size * 0.25, fill=lerp(fill, (255, 255, 255), 0.3))
-    img.alpha_composite(layer.rotate(rot, resample=Image.BICUBIC, expand=True),
-                        (int(center[0] - layer.width / 2), int(center[1] - layer.height / 2)))
+    layer = layer.rotate(rot, resample=Image.BICUBIC, expand=True)
+    img.alpha_composite(layer, (int(center[0] - layer.width / 2), int(center[1] - layer.height / 2)))
     title_text(img, text, TITLE_FONT, size, (center[0], center[1] + size * 0.08), rot=rot,
                top=(255, 255, 255), bottom=(255, 255, 255), stroke=max(3, size // 10), shadow=False)
 
