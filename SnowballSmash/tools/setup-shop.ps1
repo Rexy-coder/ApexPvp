@@ -32,10 +32,10 @@ $passes = @(
     @{ Key = "MegaStart";   Id = "2025675230"; Name = "Mega Start";   Price = 249; Desc = "Start every run with a bigger snowball." },
     @{ Key = "LuckyCharm";  Id = "2026497223"; Name = "Lucky Charm";  Price = 179; Desc = "+10% chance for CRITICAL smashes (double coins)." },
     @{ Key = "RainbowBall"; Id = "2025657163"; Name = "Rainbow Ball"; Price = 149; Desc = "Exclusive colour-shifting snowball skin, +50% coins." },
-    @{ Key = "TripleHatch"; Id = "";           Name = "Triple Hatch"; Price = 249; Desc = "Hatch 3 eggs at once!" },
-    @{ Key = "AutoHatch";   Id = "";           Name = "Auto Hatch";   Price = 299; Desc = "Keep hatching eggs automatically." },
-    @{ Key = "LuckyEggs";   Id = "";           Name = "Lucky Eggs";   Price = 399; Desc = "x1.5 chance for Rare, Epic, Legendary and Secret pets." },
-    @{ Key = "ExtraPets";   Id = "";           Name = "+2 Pet Slots"; Price = 199; Desc = "Equip 2 more pets at the same time." }
+    @{ Key = "TripleHatch"; Id = "2037824676"; Name = "Triple Hatch"; Price = 249; Desc = "Hatch 3 eggs at once!" },
+    @{ Key = "AutoHatch";   Id = "2036564657";           Name = "Auto Hatch";   Price = 299; Desc = "Keep hatching eggs automatically." },
+    @{ Key = "LuckyEggs";   Id = "2037728649";           Name = "Lucky Eggs";   Price = 399; Desc = "x1.5 chance for Rare, Epic, Legendary and Secret pets." },
+    @{ Key = "ExtraPets";   Id = "2036678663";           Name = "+2 Pet Slots"; Price = 199; Desc = "Equip 2 more pets at the same time." }
 )
 
 $products = @(
@@ -48,9 +48,9 @@ $products = @(
     @{ Key = "Boost15";      Id = "3718165511"; Name = "x2 Coins (15 min)"; Price = 49;  Desc = "Your coins are doubled for 15 minutes." },
     @{ Key = "Boost60";      Id = "3718165517"; Name = "x2 Coins (1 hour)"; Price = 149; Desc = "Your coins are doubled for a whole hour." },
     @{ Key = "ServerStorm";  Id = "3718165522"; Name = "Server Coin Storm"; Price = 199; Desc = "x2 coins for EVERYONE in the server for 10 minutes!" },
-    @{ Key = "LegendaryPet"; Id = "";           Name = "Legendary Pet";     Price = 299; Desc = "Get a random Legendary pet (5% chance: SECRET)!" },
-    @{ Key = "CandySmall";   Id = "";           Name = "Bag of Candy";      Price = 49;  Desc = "+250 Halloween candy" },
-    @{ Key = "CandyLarge";   Id = "";           Name = "Cauldron of Candy"; Price = 149; Desc = "+1,000 Halloween candy" }
+    @{ Key = "LegendaryPet"; Id = "3718766844";           Name = "Legendary Pet";     Price = 299; Desc = "Get a random Legendary pet (5% chance: SECRET)!" },
+    @{ Key = "CandySmall";   Id = "3718766847";           Name = "Bag of Candy";      Price = 49;  Desc = "+250 Halloween candy" },
+    @{ Key = "CandyLarge";   Id = "3718766851";           Name = "Cauldron of Candy"; Price = 149; Desc = "+1,000 Halloween candy" }
 )
 
 $passUrl = "https://apis.roblox.com/game-passes/v1/universes/$universeId/game-passes"

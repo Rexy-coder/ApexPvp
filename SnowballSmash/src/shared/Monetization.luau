@@ -77,7 +77,7 @@ Monetization.Passes = {
 	-- Update 2: pets
 	{
 		Key = "TripleHatch",
-		Id = 0, -- << Triple Hatch game pass id
+		Id = 2037824676,
 		Price = 249,
 		Name = "Triple Hatch",
 		Icon = "🥚",
@@ -86,7 +86,7 @@ Monetization.Passes = {
 	},
 	{
 		Key = "AutoHatch",
-		Id = 0, -- << Auto Hatch game pass id
+		Id = 2036564657,
 		Price = 299,
 		Name = "Auto Hatch",
 		Icon = "🔁",
@@ -95,7 +95,7 @@ Monetization.Passes = {
 	},
 	{
 		Key = "LuckyEggs",
-		Id = 0, -- << Lucky Eggs game pass id
+		Id = 2037728649,
 		Price = 399,
 		Name = "Lucky Eggs",
 		Icon = "🍀",
@@ -104,7 +104,7 @@ Monetization.Passes = {
 	},
 	{
 		Key = "ExtraPets",
-		Id = 0, -- << +2 Pet Slots game pass id
+		Id = 2036678663,
 		Price = 199,
 		Name = "+2 Pet Slots",
 		Icon = "🐾",
@@ -225,7 +225,7 @@ Monetization.Products = {
 	-- Update 2: pets & Halloween
 	{
 		Key = "LegendaryPet",
-		Id = 0, -- << product id
+		Id = 3718766844,
 		Price = 299,
 		Name = "Legendary Pet",
 		Icon = "🌟",
@@ -235,7 +235,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "CandySmall",
-		Id = 0, -- << product id
+		Id = 3718766847,
 		Price = 49,
 		Name = "Bag of Candy",
 		Icon = "🍬",
@@ -246,7 +246,7 @@ Monetization.Products = {
 	},
 	{
 		Key = "CandyLarge",
-		Id = 0, -- << product id
+		Id = 3718766851,
 		Price = 149,
 		Name = "Cauldron of Candy",
 		Icon = "🎃",
