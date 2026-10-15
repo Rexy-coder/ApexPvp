@@ -687,7 +687,7 @@ local client = Instance.new("LocalScript")
 client.Name = "SnowballClient"
 client.Source = read("src/client/Main.client.luau")
 client.Parent = sps
-for _, name in { "UIKit", "Effects", "Hud", "Panels", "UpgradeTree", "CourseBuilder", "Runner", "PetsUI", "DailyUI", "CrazyFX" } do
+for _, name in { "UIKit", "Effects", "Hud", "Panels", "UpgradeTree", "CourseBuilder", "Runner", "PetsUI", "DailyUI", "CrazyFX", "PetModels" } do
 	module(client, name, "src/client/" .. name .. ".luau")
 end
 

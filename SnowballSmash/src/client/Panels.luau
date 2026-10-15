@@ -497,6 +497,7 @@ end
 ----------------------------------------------------------------------
 local Players = game:GetService("Players")
 local Pets = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Pets"))
+local PetModels = require(script.Parent:WaitForChild("PetModels"))
 
 local adminPanel = UIKit.panel(Hud.Root, "Admin Panel", "🛡️", 960, 640)
 register("Admin", adminPanel)
@@ -878,7 +879,7 @@ for i, pet in Pets.All do
 	UIKit.corner(tile, 10)
 	UIKit.stroke(tile, 2.5)
 	UIKit.gradient(tile, { Color3.new(1, 1, 1), Color3.new(0.6, 0.6, 0.65) }, 90)
-	UIKit.label({ Text = pet.Icon, Size = UDim2.fromOffset(46, 46), Position = UDim2.new(0.5, 0, 0, 4), AnchorPoint = Vector2.new(0.5, 0), Stroke = 0, Parent = tile })
+	PetModels.viewport(pet.Id, tile, UDim2.fromOffset(64, 56), UDim2.new(0.5, 0, 0, 2), Vector2.new(0.5, 0))
 	UIKit.label({ Text = pet.Name, Size = UDim2.new(1, -6, 0, 20), Position = UDim2.new(0.5, 0, 1, -4), AnchorPoint = Vector2.new(0.5, 1), Stroke = 2, Parent = tile })
 	tile.Activated:Connect(function()
 		Effects.play("Click", 1.2)

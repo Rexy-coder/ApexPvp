@@ -83,6 +83,10 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
     (super jumps!), snowballs fly 1.8x higher off ramps, **x2 hatch luck** and obstacles turn
     **🌌 Galaxy (x15)**.
   * Music for each one: `Sounds.CrazyMusic`.
+* **🐾 3D pet models** (Pet Simulator style): every pet is a chunky 3D critter built from parts
+  (`StarterPlayerScripts.SnowballClient.PetModels`). They hop after you, face where they walk,
+  float around your snowball during a run, and Legendary/Secret pets sparkle and glow. The
+  3D models also show in the inventory, Index, egg odds, admin panel and hatch screen.
 * **🍬 Treat Collector** (the old Candy Collector upgrade) now boosts presents too.
 * **Codes:** `WINTER` (150 presents + 2 Turbos, until 15 Jan 2027) and `METEOR` (5,000 coins).
 

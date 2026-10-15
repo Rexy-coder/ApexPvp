@@ -160,6 +160,13 @@
                   "filePaths": [
                     "src/client/CrazyFX.luau"
                   ]
+                },
+                {
+                  "name": "PetModels",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/PetModels.luau"
+                  ]
                 }
               ]
             }

@@ -13,6 +13,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Pets = require(Shared:WaitForChild("Pets"))
 local UIKit = require(script.Parent:WaitForChild("UIKit"))
+local PetModels = require(script.Parent:WaitForChild("PetModels"))
 local Hud = require(script.Parent:WaitForChild("Hud"))
 local Panels = require(script.Parent:WaitForChild("Panels"))
 local Effects = require(script.Parent:WaitForChild("Effects"))
@@ -61,15 +62,21 @@ local function petTile(parent: Instance, petId: string, size: Vector2, showName:
 	UIKit.corner(tile, 12)
 	UIKit.stroke(tile, 3)
 	UIKit.gradient(tile, { Color3.new(1, 1, 1), Color3.new(0.6, 0.6, 0.65) }, 90)
-	UIKit.label({
-		Text = if known then pet.Icon else "?",
-		Size = UDim2.new(0.8, 0, 0, size.Y * (if showName then 0.52 else 0.7)),
-		Position = UDim2.new(0.5, 0, 0, size.Y * 0.06),
-		AnchorPoint = Vector2.new(0.5, 0),
-		Stroke = if known then 0 else 3,
-		TextColor3 = Color3.fromRGB(150, 150, 165),
-		Parent = tile,
-	})
+	local iconHeight = size.Y * (if showName then 0.56 else 0.78)
+	if known then
+		-- the real 3D pet
+		PetModels.viewport(petId, tile, UDim2.new(0, iconHeight * 1.15, 0, iconHeight), UDim2.new(0.5, 0, 0, size.Y * 0.03), Vector2.new(0.5, 0))
+	else
+		UIKit.label({
+			Text = "?",
+			Size = UDim2.new(0.8, 0, 0, iconHeight),
+			Position = UDim2.new(0.5, 0, 0, size.Y * 0.06),
+			AnchorPoint = Vector2.new(0.5, 0),
+			Stroke = 3,
+			TextColor3 = Color3.fromRGB(150, 150, 165),
+			Parent = tile,
+		})
+	end
 	if showName then
 		UIKit.label({
 			Text = if known then pet.Name else "???",
@@ -387,8 +394,17 @@ function PetsUI.playHatch(eggId: string, results: { string }, newPets: { [string
 				RunService.RenderStepped:Wait()
 			end
 		end)
-		local icon = UIKit.label({ Text = pet.Icon, Size = UDim2.fromOffset(190, 190), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42), Stroke = 0, ZIndex = 64, Parent = h.Holder })
+		local icon, petModel = PetModels.viewport(pet.Id, h.Holder, UDim2.fromOffset(250, 250), UDim2.fromScale(0.5, 0.42), Vector2.new(0.5, 0.5))
+		icon.ZIndex = 64
 		UIKit.pop(icon, 0.2)
+		task.spawn(function()
+			local spin = math.rad(-25)
+			while icon.Parent do
+				local dt = RunService.RenderStepped:Wait()
+				spin += dt * 1.6
+				petModel:PivotTo(CFrame.new(0, math.sin(os.clock() * 3) * 0.12, 0) * CFrame.Angles(0, spin, 0))
+			end
+		end)
 		local name = UIKit.label({ Text = pet.Name, Size = UDim2.fromOffset(300, 44), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.72), Stroke = 3.5, ZIndex = 64, Parent = h.Holder })
 		local rarity = UIKit.label({ Text = string.upper(pet.Rarity), TextColor3 = rarityColor(pet.Rarity), Size = UDim2.fromOffset(300, 36), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.84), Stroke = 3, ZIndex = 64, Parent = h.Holder })
 		if pet.Rarity == "Secret" then
@@ -634,25 +650,13 @@ local followFolder = Instance.new("Folder")
 followFolder.Name = "PetFollowers"
 followFolder.Parent = Workspace
 
-type Follower = { Part: Part, Pos: Vector3, PetId: string }
+type Follower = { Model: Model, Pos: Vector3, Dir: Vector3, PetId: string }
 local followers: { [Player]: { Follower } } = {}
 
 local function makeFollower(petId: string): Follower
-	local pet = Pets.ById[petId]
-	local part = Instance.new("Part")
-	part.Name = petId
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.Transparency = 1
-	part.Size = Vector3.one * 0.2
-	part.Parent = followFolder
-	local gui = new("BillboardGui", { Size = UDim2.new(3.4, 0, 3.4, 0), LightInfluence = 0, MaxDistance = 250, Parent = part })
-	local glow = new("Frame", { BackgroundColor3 = rarityColor(pet.Rarity), BackgroundTransparency = 0.55, Size = UDim2.fromScale(0.8, 0.8), Position = UDim2.fromScale(0.1, 0.12), Parent = gui })
-	UIKit.round(glow)
-	UIKit.label({ Text = pet.Icon, Size = UDim2.fromScale(1, 1), Stroke = 0, Parent = gui })
-	return { Part = part, Pos = Vector3.zero, PetId = petId }
+	local model = PetModels.build(petId)
+	model.Parent = followFolder
+	return { Model = model, Pos = Vector3.zero, Dir = Vector3.new(0, 0, -1), PetId = petId }
 end
 
 local function syncFollowers(p: Player)
@@ -677,7 +681,7 @@ local function syncFollowers(p: Player)
 		return
 	end
 	for _, f in list do
-		f.Part:Destroy()
+		f.Model:Destroy()
 	end
 	list = {}
 	for _, id in want do
@@ -700,7 +704,7 @@ Players.PlayerRemoving:Connect(function(p)
 	local list = followers[p]
 	if list then
 		for _, f in list do
-			f.Part:Destroy()
+			f.Model:Destroy()
 		end
 	end
 	followers[p] = nil
@@ -709,20 +713,21 @@ end)
 RunService.RenderStepped:Connect(function(dt)
 	local t = os.clock()
 	for p, list in followers do
-		local center, look, spread = nil, nil, 4
+		local center, look, spread, flying = nil, nil, 4, false
 		if p == player then
 			local ballPos, radius = PetsUI.BallTarget()
 			if ballPos then
 				center = ballPos + Vector3.new(0, (radius or 3) + 3, 0)
 				look = Vector3.new(0, 0, -1)
 				spread = 4 + (radius or 3) * 0.8
+				flying = true
 			end
 		end
 		if not center then
 			local character = p.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
 			if root then
-				center = root.Position + Vector3.new(0, 1.5, 0)
+				center = root.Position - Vector3.new(0, 1.55, 0) -- standing on the ground next to you
 				look = root.CFrame.LookVector
 			end
 		end
@@ -733,12 +738,26 @@ RunService.RenderStepped:Connect(function(dt)
 			for i, f in list do
 				local side = (i - (#list + 1) / 2)
 				local want = center - flat * (spread * 0.9 + math.abs(side) * 0.8) + right * side * spread * 0.7
-					+ Vector3.new(0, math.sin(t * 3 + i) * 0.6, 0)
 				if f.Pos == Vector3.zero or (f.Pos - want).Magnitude > 80 then
 					f.Pos = want
 				end
+				local before = f.Pos
 				f.Pos = f.Pos:Lerp(want, 1 - math.exp(-dt * 7))
-				f.Part.CFrame = CFrame.new(f.Pos)
+				local move = (f.Pos - before) / math.max(dt, 1 / 240)
+				local moveFlat = Vector3.new(move.X, 0, move.Z)
+				local speed = moveFlat.Magnitude
+				-- face where we're walking, or the same way as the owner when standing still
+				local wantDir = if speed > 1.5 then moveFlat.Unit else flat
+				f.Dir = f.Dir:Lerp(wantDir, 1 - math.exp(-dt * 8))
+				if f.Dir.Magnitude < 0.05 then
+					f.Dir = wantDir
+				end
+				-- little hops while walking, a gentle float while flying or idle
+				local hop = if flying then math.sin(t * 3 + i) * 0.5
+					else math.abs(math.sin(t * 11 + i * 1.7)) * 0.8 * math.clamp(speed / 6, 0, 1) + math.sin(t * 2.5 + i) * 0.08
+				local tilt = if flying then 0 else math.clamp(speed / 30, 0, 0.25)
+				local pos = f.Pos + Vector3.new(0, hop, 0)
+				f.Model:PivotTo(CFrame.lookAt(pos, pos + f.Dir.Unit) * CFrame.Angles(-tilt, 0, math.sin(t * 11 + i) * tilt * 0.6))
 			end
 		end
 	end
