@@ -41,6 +41,9 @@ CourseGen.Kinds = {
 	-- Halloween (only while Config.Halloween.Enabled)
 	Pumpkin = { W = 5.5, D = 5.5, H = 6, Tough = 1, Coins = 20, Candy = 1 },
 	GhostSnowman = { W = 4.6, D = 4.6, H = 11, Tough = 2, Coins = 30, Candy = 2 },
+	-- Winter (only while Config.Winter.Enabled)
+	GiantPresent = { W = 6, D = 6, H = 8, Tough = 1, Coins = 24, Presents = 1 },
+	GingerHouse = { W = 9, D = 9, H = 11, Tough = 3, Coins = 45, Presents = 3 },
 }
 
 local POOLS = {
@@ -93,6 +96,7 @@ export type ObstacleSpec = {
 	Tough: number,
 	Coins: number,
 	Candy: number,
+	Presents: number,
 	Variant: number,
 }
 export type PadSpec = { Kind: string, S: number, X: number }
@@ -107,6 +111,7 @@ export type ChunkSpec = {
 	Marker: number?,
 	Value: number,
 	Candy: number,
+	Presents: number,
 }
 
 local cache: { [number]: ChunkSpec } = {}
@@ -129,7 +134,7 @@ function CourseGen.Chunk(index: number): ChunkSpec
 	local s0, s1 = index * L, (index + 1) * L
 	local rng = Random.new(CourseGen.Seed * 7919 + index * 104729)
 	local half = CourseGen.Width / 2 - 8
-	local chunk: ChunkSpec = { Index = index, S0 = s0, S1 = s1, Obstacles = {}, Pads = {}, Coins = {}, Marker = nil, Value = 0, Candy = 0 }
+	local chunk: ChunkSpec = { Index = index, S0 = s0, S1 = s1, Obstacles = {}, Pads = {}, Coins = {}, Marker = nil, Value = 0, Candy = 0, Presents = 0 }
 	local reserved = {}
 
 	local function addObstacle(kind: string, s: number, x: number)
@@ -145,11 +150,13 @@ function CourseGen.Chunk(index: number): ChunkSpec
 			Tough = k.Tough * CourseGen.ToughScale(s),
 			Coins = math.floor(k.Coins * CourseGen.CoinScale(s) + 0.5),
 			Candy = k.Candy or 0,
+			Presents = k.Presents or 0,
 			Variant = rng:NextInteger(1, 4),
 		}
 		table.insert(chunk.Obstacles, o)
 		chunk.Value += o.Coins
 		chunk.Candy += o.Candy
+		chunk.Presents += o.Presents
 	end
 
 	-- gate across the slope
@@ -206,6 +213,8 @@ function CourseGen.Chunk(index: number): ChunkSpec
 				local spooky = rng:NextNumber()
 				if Config.Halloween.Enabled and spooky < Config.Halloween.SpawnChance then
 					kind = if spooky < Config.Halloween.SpawnChance * 0.6 then "Pumpkin" else "GhostSnowman"
+				elseif Config.Winter.Enabled and spooky < Config.Winter.SpawnChance then
+					kind = if spooky < Config.Winter.SpawnChance * 0.7 then "GiantPresent" else "GingerHouse"
 				end
 				local x = rng:NextNumber(-half, half)
 				if kind == "Cabin" then
@@ -253,6 +262,15 @@ function CourseGen.CandyUpTo(s: number): number
 	local total = 0
 	for i = 0, math.floor(math.max(0, s) / CourseGen.ChunkLength) do
 		total += CourseGen.Chunk(i).Candy
+	end
+	return total
+end
+
+-- Most Winter presents a run up to distance `s` could collect
+function CourseGen.PresentsUpTo(s: number): number
+	local total = 0
+	for i = 0, math.floor(math.max(0, s) / CourseGen.ChunkLength) do
+		total += CourseGen.Chunk(i).Presents
 	end
 	return total
 end

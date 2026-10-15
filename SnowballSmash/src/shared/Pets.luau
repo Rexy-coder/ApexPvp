@@ -79,6 +79,22 @@ Pets.Eggs = {
 			{ Id = "Vampire", Name = "Vampire", Icon = "🧛", Rarity = "Secret", Chance = 0.1, Coins = 1500, Growth = 40, Launch = 25 },
 		},
 	},
+	{
+		Id = "Winter",
+		Name = "Winter Egg",
+		Currency = "Presents",
+		Price = 300,
+		Color = Color3.fromRGB(235, 60, 70),
+		Winter = true, -- only shown while Config.Winter.Enabled is true
+		Pets = {
+			{ Id = "Reindeer", Name = "Reindeer", Icon = "🦌", Rarity = "Common", Chance = 45, Coins = 60 },
+			{ Id = "PolarBear", Name = "Polar Bear", Icon = "🐻‍❄️", Rarity = "Common", Chance = 30, Coins = 80 },
+			{ Id = "Gingerbread", Name = "Gingerbread", Icon = "🍪", Rarity = "Rare", Chance = 17, Coins = 160, Growth = 10 },
+			{ Id = "Elf", Name = "Snow Elf", Icon = "🧝", Rarity = "Epic", Chance = 7, Coins = 350, Launch = 15 },
+			{ Id = "Santa", Name = "Santa Paws", Icon = "🎅", Rarity = "Legendary", Chance = 0.9, Coins = 900, Growth = 30 },
+			{ Id = "FrostTitan", Name = "Frost Titan", Icon = "🧊", Rarity = "Secret", Chance = 0.1, Coins = 2500, Growth = 50, Launch = 35 },
+		},
+	},
 }
 
 Pets.EggById = {}
@@ -161,7 +177,7 @@ function Pets.RollLegendary(rng): string
 	local wantSecret = rng:NextNumber() < 0.05
 	for _, p in Pets.All do
 		local egg = Pets.EggById[p.Egg]
-		if not egg.Halloween and p.Rarity == (if wantSecret then "Secret" else "Legendary") then
+		if not egg.Halloween and not egg.Winter and p.Rarity == (if wantSecret then "Secret" else "Legendary") then
 			table.insert(pool, p.Id)
 		end
 	end

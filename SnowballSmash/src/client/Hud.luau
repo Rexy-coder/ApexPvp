@@ -171,11 +171,32 @@ local candyLabel = UIKit.label({
 local lastCandy = 0
 function Hud.setCandy(amount: number)
 	candyLabel.Text = "🍬 " .. Config.Short(amount)
-	candyLabel.Visible = Config.Halloween.Enabled or amount > 0
+	candyLabel.Visible = Config.Halloween.Enabled
 	if amount > lastCandy then
 		UIKit.pop(candyLabel, 1.3)
 	end
 	lastCandy = amount
+end
+
+local presentsLabel = UIKit.label({
+	Name = "Presents",
+	Text = "🎁 0",
+	TextColor3 = Config.Currencies.Presents.Color,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Size = UDim2.fromOffset(130, 30),
+	Position = UDim2.fromOffset(if Config.Halloween.Enabled then 280 else 190, 74),
+	Visible = Config.Winter.Enabled,
+	Stroke = 3,
+	Parent = wallet,
+})
+local lastPresents = 0
+function Hud.setPresents(amount: number)
+	presentsLabel.Text = "🎁 " .. Config.Short(amount)
+	presentsLabel.Visible = Config.Winter.Enabled
+	if amount > lastPresents then
+		UIKit.pop(presentsLabel, 1.3)
+	end
+	lastPresents = amount
 end
 
 function Hud.setBest(best: number)
@@ -843,6 +864,78 @@ function Hud.announce(title: string, text: string, color: Color3?)
 			end
 		end)
 	end)
+end
+
+----------------------------------------------------------------------
+-- Crazy event countdown: huge "☄️ METEOR SHOWER  5 4 3 2 1  NOW!" in the
+-- middle of the screen
+----------------------------------------------------------------------
+local countdown = new("Frame", {
+	Name = "CrazyCountdown",
+	BackgroundTransparency = 1,
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.36),
+	Size = UDim2.fromOffset(900, 300),
+	Visible = false,
+	ZIndex = 60,
+	Parent = root,
+})
+local countdownScale = new("UIScale", { Parent = countdown })
+local countdownTitle = UIKit.label({ Text = "", Size = UDim2.new(1, 0, 0, 90), Stroke = 6, ZIndex = 61, Parent = countdown })
+local countdownSub = UIKit.label({ Text = "INCOMING IN", Size = UDim2.new(1, 0, 0, 36), Position = UDim2.fromOffset(0, 96), Stroke = 4, ZIndex = 61, Parent = countdown })
+local countdownNumber = UIKit.label({ Text = "10", Size = UDim2.new(1, 0, 0, 150), Position = UDim2.fromOffset(0, 136), Stroke = 8, ZIndex = 61, Parent = countdown })
+local countdownGradient = UIKit.gradient(countdownTitle, { Color3.new(1, 1, 1), Color3.new(1, 1, 1) }, 90)
+local countdownToken = 0
+
+function Hud.crazyCountdown(icon: string, name: string, color: Color3, endsAt: number)
+	countdownToken += 1
+	local token = countdownToken
+	countdownTitle.Text = icon .. " " .. string.upper(name) .. " " .. icon
+	countdownGradient.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+	countdownNumber.TextColor3 = color
+	countdownSub.Text = "INCOMING IN"
+	countdown.Visible = true
+	countdownScale.Scale = 0.2
+	UIKit.tween(countdownScale, 0.45, { Scale = 1 }, Enum.EasingStyle.Back)
+	task.spawn(function()
+		local last = -1
+		while token == countdownToken do
+			local left = math.ceil(endsAt - Workspace:GetServerTimeNow())
+			if left <= 0 then
+				break
+			end
+			if left ~= last then
+				last = left
+				countdownNumber.Text = tostring(left)
+				UIKit.pop(countdownNumber, 1.5)
+				Effects.play("Countdown", if left <= 3 then 1.4 else 1, 0.8)
+				if left <= 3 then
+					Effects.shake(0.4)
+				end
+			end
+			task.wait(0.05)
+		end
+		if token ~= countdownToken then
+			return
+		end
+		countdownSub.Text = ""
+		countdownNumber.Text = "NOW!"
+		UIKit.pop(countdownNumber, 1.8)
+		Effects.shake(1.6)
+		task.wait(1.4)
+		if token == countdownToken then
+			local t = UIKit.tween(countdownScale, 0.3, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+			t.Completed:Wait()
+			if token == countdownToken then
+				countdown.Visible = false
+			end
+		end
+	end)
+end
+
+function Hud.cancelCountdown()
+	countdownToken += 1
+	countdown.Visible = false
 end
 
 ----------------------------------------------------------------------

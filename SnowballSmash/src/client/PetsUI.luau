@@ -43,7 +43,7 @@ local function rarityColor(r: string): Color3
 end
 
 local function eggVisible(egg): boolean
-	return not egg.Halloween or Config.Halloween.Enabled
+	return (not egg.Halloween or Config.Halloween.Enabled) and (not egg.Winter or Config.Winter.Enabled)
 end
 
 ----------------------------------------------------------------------
@@ -190,8 +190,9 @@ local function fillEggPanel(eggId: string)
 	local egg = Pets.EggById[eggId]
 	eggTitle.Text = "🥚 " .. egg.Name
 	local price = if data then Config.EggPrice(data.Owned, egg.Price) else egg.Price
-	eggPrice.Text = (if egg.Currency == "Candy" then "🍬 " else "🪙 ") .. Config.Commas(price) .. (if price < egg.Price then " 🏷️" else "")
-	eggPrice.TextColor3 = if egg.Currency == "Candy" then Color3.fromRGB(255, 160, 50) else Color3.fromRGB(255, 225, 70)
+	local currency = Config.Currencies[egg.Currency] or Config.Currencies.Coins
+	eggPrice.Text = currency.Icon .. " " .. Config.Commas(price) .. (if price < egg.Price then " 🏷️" else "")
+	eggPrice.TextColor3 = currency.Color
 	for _, c in oddsRow:GetChildren() do
 		if c:IsA("GuiObject") then
 			c:Destroy()

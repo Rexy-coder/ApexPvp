@@ -218,6 +218,53 @@ function Builders.GhostSnowman(m, cf, o)
 	part(m, { Size = Vector3.new(1.8, 0.35, 1.8), CFrame = cf * CFrame.new(0, 9.35, 0), Color = rgb(255, 130, 20) })
 end
 
+-- Winter ---------------------------------------------------------------
+function Builders.GiantPresent(m, cf, o)
+	cf = cf * CFrame.Angles(0, (o.Rot - math.pi) * 0.2, 0)
+	local wraps = { { RED, rgb(255, 215, 60) }, { rgb(40, 170, 80), RED }, { rgb(70, 130, 255), WHITE }, { rgb(190, 90, 240), rgb(255, 215, 60) } }
+	local wrap = wraps[o.Variant]
+	local box = part(m, { Size = Vector3.new(6, 6, 6), CFrame = cf * CFrame.new(0, 3, 0), Color = wrap[1] })
+	part(m, { Size = Vector3.new(6.1, 6.1, 1.1), CFrame = box.CFrame, Color = wrap[2] })
+	part(m, { Size = Vector3.new(1.1, 6.1, 6.1), CFrame = box.CFrame, Color = wrap[2] })
+	-- bow on top
+	for _, side in { -1, 1 } do
+		part(m, { Shape = Enum.PartType.Ball, Size = Vector3.new(2.2, 1.4, 1.4), CFrame = cf * CFrame.new(side * 1, 6.6, 0) * CFrame.Angles(0, 0, side * 0.5), Color = wrap[2] })
+	end
+	part(m, { Shape = Enum.PartType.Ball, Size = Vector3.new(1.1, 1.1, 1.1), CFrame = cf * CFrame.new(0, 6.5, 0), Color = wrap[2], Material = Enum.Material.Neon })
+	part(m, { Size = Vector3.new(6.2, 0.4, 6.2), CFrame = cf * CFrame.new(0, 6.15, 0), Color = SNOW_A, Material = Enum.Material.Snow })
+end
+
+function Builders.GingerHouse(m, cf, o)
+	cf = cf * CFrame.Angles(0, if o.Variant % 2 == 0 then 0 else math.pi, 0)
+	local ginger = rgb(196, 120, 60)
+	local icing = WHITE
+	part(m, { Size = Vector3.new(8, 6, 7), CFrame = cf * CFrame.new(0, 3, 0), Color = ginger, Material = Enum.Material.SmoothPlastic })
+	part(m, { Size = Vector3.new(8.2, 0.5, 7.2), CFrame = cf * CFrame.new(0, 0.6, 0), Color = icing })
+	-- door + windows
+	part(m, { Size = Vector3.new(1.8, 3, 0.3), CFrame = cf * CFrame.new(0, 1.5, -3.55), Color = rgb(120, 60, 30) })
+	for _, side in { -1, 1 } do
+		part(m, { Size = Vector3.new(1.4, 1.4, 0.3), CFrame = cf * CFrame.new(side * 2.5, 3.8, -3.55), Color = rgb(255, 220, 120), Material = Enum.Material.Neon })
+		part(m, { Size = Vector3.new(1.8, 0.3, 0.4), CFrame = cf * CFrame.new(side * 2.5, 3.0, -3.6), Color = icing })
+	end
+	-- iced roof
+	local roofAngle = math.rad(35)
+	for _, side in { -1, 1 } do
+		local roofCF = cf * CFrame.new(side * 2.1, 7.3, 0) * CFrame.Angles(0, 0, side * -roofAngle)
+		part(m, { Size = Vector3.new(5.6, 0.8, 8), CFrame = roofCF, Color = rgb(170, 95, 45) })
+		part(m, { Size = Vector3.new(5.4, 0.4, 8.2), CFrame = roofCF * CFrame.new(0, 0.5, 0), Color = icing })
+	end
+	-- gumdrops + candy canes
+	local drops = { RED, rgb(60, 200, 90), rgb(255, 215, 60), rgb(190, 90, 240) }
+	for i = 0, 3 do
+		part(m, { Shape = Enum.PartType.Ball, Size = Vector3.one * 0.8, CFrame = cf * CFrame.new(-3 + i * 2, 9.3 - math.abs(i - 1.5) * 0.4, 0), Color = drops[i + 1], Material = Enum.Material.Neon })
+	end
+	for _, side in { -1, 1 } do
+		for k = 0, 3 do
+			part(m, { Size = Vector3.new(0.6, 1, 0.6), CFrame = cf * CFrame.new(side * 4.6, k + 0.5, -3.8), Color = if k % 2 == 0 then RED else WHITE })
+		end
+	end
+end
+
 function Builders.Gate(m, cf)
 	local w = WIDTH - 4
 	for r = 0, 3 do
@@ -239,7 +286,7 @@ function Builders.Gate(m, cf)
 end
 
 ----------------------------------------------------------------------
--- Mutations (Mutation Storm): recolour the obstacle and add sparkles
+-- Mutations (Mutation Storm, Meteor Shower, Galaxy): recolour + sparkles
 ----------------------------------------------------------------------
 local function mutate(m: Model, mutation)
 	for _, d in m:GetDescendants() do
@@ -276,6 +323,7 @@ export type Obstacle = {
 	Toughness: number,
 	Coins: number,
 	Candy: number,
+	Presents: number,
 	Mult: number,
 	Model: Model?,
 	Smashed: boolean,
@@ -330,7 +378,8 @@ local function marker(folder, s)
 	stroke.Parent = label
 end
 
-function CourseBuilder.Build(index: number, parent: Instance, mutationOn: boolean): Built
+-- mutations: mutation ids obstacles may roll (from the active events)
+function CourseBuilder.Build(index: number, parent: Instance, mutations: { string }): Built
 	local spec = CourseGen.Chunk(index)
 	local L = CourseGen.ChunkLength
 	local folder = Instance.new("Folder")
@@ -382,10 +431,11 @@ function CourseBuilder.Build(index: number, parent: Instance, mutationOn: boolea
 			builder(m, CourseGen.Upright(o.S, o.X, math.min(o.D, 12)), o)
 		end
 		local mult = 1
-		if mutationOn and o.Kind ~= "Gate" then
+		if #mutations > 0 and o.Kind ~= "Gate" then
 			local roll = rng:NextNumber()
 			local acc = 0
-			for _, mutation in Config.Mutations do
+			for _, id in mutations do
+				local mutation = Config.MutationById[id]
 				acc += mutation.Chance
 				if roll < acc then
 					mult = mutation.Mult
@@ -403,6 +453,7 @@ function CourseBuilder.Build(index: number, parent: Instance, mutationOn: boolea
 			Toughness = o.Tough,
 			Coins = o.Coins,
 			Candy = o.Candy or 0,
+			Presents = o.Presents or 0,
 			Mult = mult,
 			Model = m,
 			Smashed = false,

@@ -30,6 +30,8 @@ local UpgradeTree = require(script:WaitForChild("UpgradeTree"))
 local Runner = require(script:WaitForChild("Runner"))
 local PetsUI = require(script:WaitForChild("PetsUI"))
 local DailyUI = require(script:WaitForChild("DailyUI"))
+local CrazyFX = require(script:WaitForChild("CrazyFX"))
+local Pets = require(Shared:WaitForChild("Pets"))
 
 local C = UIKit.Colors
 
@@ -81,6 +83,7 @@ local function apply(newData)
 	Hud.setBest(newData.BestEarn)
 	Hud.setTurbos(newData.Turbos or 0)
 	Hud.setCandy(newData.Candy or 0)
+	Hud.setPresents(newData.Presents or 0)
 	PetsUI.refresh(newData)
 	DailyUI.refresh(newData)
 	Panels.refresh(newData)
@@ -226,19 +229,37 @@ refreshBoosts = function()
 	for _, ev in events do
 		table.insert(entries, { Key = "Event_" .. ev.Def.Id, Icon = ev.Def.Icon, Text = ev.Def.Name, Color = ev.Def.Color, EndsAt = ev.EndsAt })
 	end
-	Hud.setBoosts(entries)
 
-	local mutation = false
+	local mutations = {}
 	local stormColor = nil
+	local crazy = nil
 	for _, ev in events do
 		stormColor = stormColor or ev.Def.Color
-		if ev.Def.Mutation then
-			mutation = true
+		if ev.Def.Crazy then
+			crazy = crazy or ev.Def.Id
+		end
+		for _, id in ev.Def.Mutations or {} do
+			if not table.find(mutations, id) then
+				table.insert(mutations, id)
+			end
 		end
 	end
+
+	-- countdown to the next random crazy event
+	local incoming = GameState:GetAttribute("CrazyIncoming")
+	local nextCrazy = GameState:GetAttribute("NextCrazy")
+	if type(incoming) == "string" and incoming ~= "" and Config.EventById[incoming] then
+		local def = Config.EventById[incoming]
+		table.insert(entries, { Key = "Incoming", Icon = def.Icon, Text = def.Name .. " in", Color = def.Color, EndsAt = GameState:GetAttribute("CrazyIncomingAt") })
+	elseif not crazy and GameState:GetAttribute("CrazyAuto") == true and type(nextCrazy) == "number" and nextCrazy > serverNow() then
+		table.insert(entries, { Key = "NextCrazy", Icon = "🎲", Text = "Crazy event in", Color = C.Slate, EndsAt = nextCrazy })
+	end
+	Hud.setBoosts(entries)
+
 	Effects.setStorm(#events > 0, stormColor)
-	Effects.setEventMusic(#events > 0)
-	Runner.setMutation(mutation)
+	Effects.setEventMusic(#events > 0, crazy)
+	CrazyFX.setActive(crazy)
+	Runner.setMutations(mutations)
 end
 
 GameState.AttributeChanged:Connect(function()
@@ -254,7 +275,7 @@ end)
 Notify.OnClientEvent:Connect(function(kind: string, payload)
 	payload = payload or {}
 	if kind == "Announcement" then
-		Hud.announce("📢 " .. tostring(payload.From), tostring(payload.Text), C.Yellow)
+		Hud.announce((if payload.Global then "🌍 " else "📢 ") .. tostring(payload.From), tostring(payload.Text), C.Yellow)
 		systemChat("[ANNOUNCEMENT] " .. tostring(payload.Text))
 		Effects.play("Notify", 0.9)
 	elseif kind == "EventStarted" then
@@ -278,11 +299,24 @@ Notify.OnClientEvent:Connect(function(kind: string, payload)
 		Hud.announce("🎁 GIFT", tostring(payload.Text), C.Green)
 		Effects.play("Purchase", 1.3)
 	elseif kind == "PetGranted" and type(payload.Pets) == "table" then
+		local first = Pets.ById[payload.Pets[1]]
 		task.spawn(function()
 			PetsUI.Busy = true
-			PetsUI.playHatch("Aurora", payload.Pets, {})
+			PetsUI.playHatch(if first then first.Egg else "Aurora", payload.Pets, {})
 			PetsUI.Busy = false
 		end)
+	elseif kind == "CrazyIncoming" then
+		local def = Config.EventById[payload.Id]
+		if def and type(payload.At) == "number" then
+			Hud.crazyCountdown(def.Icon, def.Name, def.Color, payload.At)
+			systemChat(def.Icon .. " " .. string.upper(def.Name) .. " INCOMING!")
+		end
+		refreshBoosts()
+	elseif kind == "Meteor" and typeof(payload.Pos) == "Vector3" then
+		CrazyFX.meteor(payload.Pos, (tonumber(payload.At) or serverNow()) - serverNow(), 7)
+	elseif kind == "Shard" then
+		Hud.toast("☄️ Meteor shard! +" .. Config.Commas(tonumber(payload.Coins) or 0) .. " coins", Color3.fromRGB(255, 110, 40))
+		Effects.play("Shard", 1.4)
 	end
 end)
 
@@ -432,6 +466,9 @@ Runner.OnFinish = function(report)
 		if (result.Candy or 0) > 0 then
 			Hud.toast("+" .. result.Candy .. " 🍬 candy!", Color3.fromRGB(255, 140, 30))
 		end
+		if (result.Presents or 0) > 0 then
+			Hud.toast("+" .. result.Presents .. " 🎁 presents!", Config.Currencies.Presents.Color)
+		end
 		Hud.setMode("Result")
 		setMode("Result")
 		Panels.showResult(result, function()
@@ -512,11 +549,14 @@ end
 Panels.Callbacks.Admin = function(action: string, args)
 	local ok, message = AdminAction:InvokeServer(action, args)
 	if ok then
-		Hud.toast(message or "Done!", C.Green)
-		Effects.play("Click", 1.3)
+		if type(message) ~= "table" then
+			Hud.toast(message or "Done!", C.Green)
+			Effects.play("Click", 1.3)
+		end
 	else
 		errorToast(message or "That didn't work")
 	end
+	return ok, message
 end
 
 if prompt then
@@ -654,6 +694,27 @@ if Config.Halloween.Enabled and Config.Halloween.NightLook then
 	end
 end
 
+-- Winter: cosy blue evening with warm lights
+if Config.Winter.Enabled and Config.Winter.NightLook and not (Config.Halloween.Enabled and Config.Halloween.NightLook) then
+	local Lighting = game:GetService("Lighting")
+	Lighting.ClockTime = 17.8
+	Lighting.Brightness = 2.4
+	Lighting.Ambient = Color3.fromRGB(110, 125, 170)
+	Lighting.OutdoorAmbient = Color3.fromRGB(150, 165, 210)
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	if atmosphere then
+		atmosphere.Color = Color3.fromRGB(190, 210, 255)
+		atmosphere.Decay = Color3.fromRGB(90, 110, 190)
+		atmosphere.Density = 0.3
+	end
+	local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
+	if cc then
+		cc.TintColor = Color3.fromRGB(240, 245, 255)
+	end
+end
+-- remember the seasonal look so crazy events can restore it
+CrazyFX.captureBase()
+
 ----------------------------------------------------------------------
 -- Input
 ----------------------------------------------------------------------
@@ -730,5 +791,5 @@ end)
 
 -- Show the course from the start so the lobby looks alive
 refreshPasses()
-Runner.resetCourse(false)
+Runner.resetCourse({})
 refreshBoosts()

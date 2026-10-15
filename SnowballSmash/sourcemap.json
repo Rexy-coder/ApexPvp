@@ -1,164 +1,171 @@
 {
- "name": "Game",
- "className": "DataModel",
- "children": [
-  {
-   "name": "ReplicatedStorage",
-   "className": "ReplicatedStorage",
-   "children": [
+  "name": "Game",
+  "className": "DataModel",
+  "children": [
     {
-     "name": "Shared",
-     "className": "Folder",
-     "children": [
-      {
-       "name": "Config",
-       "className": "ModuleScript",
-       "filePaths": [
-        "src/shared/Config.luau"
-       ]
-      },
-      {
-       "name": "Monetization",
-       "className": "ModuleScript",
-       "filePaths": [
-        "src/shared/Monetization.luau"
-       ]
-      },
-      {
-       "name": "Sounds",
-       "className": "ModuleScript",
-       "filePaths": [
-        "src/shared/Sounds.luau"
-       ]
-      },
-      {
-       "name": "CourseGen",
-       "className": "ModuleScript",
-       "filePaths": [
-        "src/shared/CourseGen.luau"
-       ]
-      },
-      {
-       "name": "Pets",
-       "className": "ModuleScript",
-       "filePaths": [
-        "src/shared/Pets.luau"
-       ]
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "name": "ServerScriptService",
-   "className": "ServerScriptService",
-   "children": [
-    {
-     "name": "GameServer",
-     "className": "Script",
-     "filePaths": [
-      "src/server/GameServer.server.luau"
-     ]
-    },
-    {
-     "name": "AdminConfig",
-     "className": "ModuleScript",
-     "filePaths": [
-      "src/server/AdminConfig.luau"
-     ]
-    },
-    {
-     "name": "Codes",
-     "className": "ModuleScript",
-     "filePaths": [
-      "src/server/Codes.luau"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "StarterPlayer",
-   "className": "StarterPlayer",
-   "children": [
-    {
-     "name": "StarterPlayerScripts",
-     "className": "StarterPlayerScripts",
-     "children": [
-      {
-       "name": "SnowballClient",
-       "className": "LocalScript",
-       "filePaths": [
-        "src/client/Main.client.luau"
-       ],
-       "children": [
+      "name": "ReplicatedStorage",
+      "className": "ReplicatedStorage",
+      "children": [
         {
-         "name": "UIKit",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/UIKit.luau"
-         ]
-        },
-        {
-         "name": "Effects",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/Effects.luau"
-         ]
-        },
-        {
-         "name": "Hud",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/Hud.luau"
-         ]
-        },
-        {
-         "name": "Panels",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/Panels.luau"
-         ]
-        },
-        {
-         "name": "UpgradeTree",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/UpgradeTree.luau"
-         ]
-        },
-        {
-         "name": "CourseBuilder",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/CourseBuilder.luau"
-         ]
-        },
-        {
-         "name": "Runner",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/Runner.luau"
-         ]
-        },
-        {
-         "name": "PetsUI",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/PetsUI.luau"
-         ]
-        },
-        {
-         "name": "DailyUI",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/DailyUI.luau"
-         ]
+          "name": "Shared",
+          "className": "Folder",
+          "children": [
+            {
+              "name": "Config",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/shared/Config.luau"
+              ]
+            },
+            {
+              "name": "Monetization",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/shared/Monetization.luau"
+              ]
+            },
+            {
+              "name": "Sounds",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/shared/Sounds.luau"
+              ]
+            },
+            {
+              "name": "CourseGen",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/shared/CourseGen.luau"
+              ]
+            },
+            {
+              "name": "Pets",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/shared/Pets.luau"
+              ]
+            }
+          ]
         }
-       ]
-      }
-     ]
+      ]
+    },
+    {
+      "name": "ServerScriptService",
+      "className": "ServerScriptService",
+      "children": [
+        {
+          "name": "GameServer",
+          "className": "Script",
+          "filePaths": [
+            "src/server/GameServer.server.luau"
+          ]
+        },
+        {
+          "name": "AdminConfig",
+          "className": "ModuleScript",
+          "filePaths": [
+            "src/server/AdminConfig.luau"
+          ]
+        },
+        {
+          "name": "Codes",
+          "className": "ModuleScript",
+          "filePaths": [
+            "src/server/Codes.luau"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "StarterPlayer",
+      "className": "StarterPlayer",
+      "children": [
+        {
+          "name": "StarterPlayerScripts",
+          "className": "StarterPlayerScripts",
+          "children": [
+            {
+              "name": "SnowballClient",
+              "className": "LocalScript",
+              "filePaths": [
+                "src/client/Main.client.luau"
+              ],
+              "children": [
+                {
+                  "name": "UIKit",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/UIKit.luau"
+                  ]
+                },
+                {
+                  "name": "Effects",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/Effects.luau"
+                  ]
+                },
+                {
+                  "name": "Hud",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/Hud.luau"
+                  ]
+                },
+                {
+                  "name": "Panels",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/Panels.luau"
+                  ]
+                },
+                {
+                  "name": "UpgradeTree",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/UpgradeTree.luau"
+                  ]
+                },
+                {
+                  "name": "CourseBuilder",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/CourseBuilder.luau"
+                  ]
+                },
+                {
+                  "name": "Runner",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/Runner.luau"
+                  ]
+                },
+                {
+                  "name": "PetsUI",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/PetsUI.luau"
+                  ]
+                },
+                {
+                  "name": "DailyUI",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/DailyUI.luau"
+                  ]
+                },
+                {
+                  "name": "CrazyFX",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/client/CrazyFX.luau"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
-   ]
-  }
- ]
+  ]
 }

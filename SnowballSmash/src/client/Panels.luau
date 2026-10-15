@@ -19,7 +19,7 @@ Panels.Callbacks = {
 	SetSetting = function(_key: string, _value: boolean) end,
 	BuySkin = function(_id: string) end,
 	BuyRobux = function(_kind: string, _key: string) end,
-	Admin = function(_action: string, _args: { [string]: any }) end,
+	Admin = function(_action: string, _args: { [string]: any }): (boolean, any) return false, nil end,
 	Rebirth = function() end,
 	Closed = function() end,
 }
@@ -441,10 +441,11 @@ local function refreshShop()
 	for id, card in skinCards do
 		local skin = Config.SkinById[id]
 		local unlocked = data.Skins[id] or (skin.Pass ~= nil and passOwned[skin.Pass])
-		local candy = skin.Currency == "Candy"
-		card.Coin.Visible = not unlocked and skin.Pass == nil and not candy
-		-- Halloween skins only show during the event (or once you own them)
-		card.Card.Visible = not candy or Config.Halloween.Enabled or unlocked
+		local event = skin.Currency ~= nil and skin.Currency ~= "Coins"
+		card.Coin.Visible = not unlocked and skin.Pass == nil and not event
+		-- event skins only show during their event (or once you own them)
+		local eventOn = (skin.Currency == "Candy" and Config.Halloween.Enabled) or (skin.Currency == "Presents" and Config.Winter.Enabled)
+		card.Card.Visible = not event or eventOn or unlocked
 		if data.Skin == id then
 			card.Button.SetText("Equipped")
 			card.Button.SetColors(C.Purple, C.PurpleDark)
@@ -455,10 +456,12 @@ local function refreshShop()
 			local pass = Monetization.PassByKey[skin.Pass]
 			card.Button.SetText("R$ " .. Config.Commas(robuxPrices[skin.Pass] or pass.Price))
 			card.Button.SetColors(C.Green, C.GreenDark)
-		elseif candy then
-			card.Button.SetText("🍬 " .. Config.Short(skin.Price))
-			if (data.Candy or 0) >= skin.Price then
-				card.Button.SetColors(Color3.fromRGB(255, 140, 30), Color3.fromRGB(190, 80, 10))
+		elseif event then
+			local currency = Config.Currencies[skin.Currency]
+			card.Button.SetText(currency.Icon .. " " .. Config.Short(skin.Price))
+			if (data[skin.Currency] or 0) >= skin.Price then
+				local c = currency.Color
+				card.Button.SetColors(c, Color3.new(c.R * 0.7, c.G * 0.7, c.B * 0.7))
 			else
 				card.Button.SetColors(C.Grey, C.GreyDark)
 			end
@@ -489,37 +492,19 @@ end
 
 ----------------------------------------------------------------------
 -- Admin panel (only shown to admins; every action is checked on the server)
+-- Tabs: Server (announcements + info), Events (crazy events + storms),
+-- Players (pick a player, give stuff, passes, pets, moderation)
 ----------------------------------------------------------------------
-local adminPanel = UIKit.panel(Hud.Root, "Admin Panel", "🛡️", 860, 600)
+local Players = game:GetService("Players")
+local Pets = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Pets"))
+
+local adminPanel = UIKit.panel(Hud.Root, "Admin Panel", "🛡️", 960, 640)
 register("Admin", adminPanel)
 
-local adminScroll = new("ScrollingFrame", {
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	Size = UDim2.fromScale(1, 1),
-	CanvasSize = UDim2.new(),
-	AutomaticCanvasSize = Enum.AutomaticSize.Y,
-	ScrollBarThickness = 8,
-	ScrollBarImageColor3 = C.Yellow,
-	ScrollingDirection = Enum.ScrollingDirection.Y,
-	Parent = adminPanel.Content,
-})
-new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = adminScroll })
-new("UIPadding", { PaddingRight = UDim.new(0, 14), PaddingBottom = UDim.new(0, 12), Parent = adminScroll })
+local globalOn = false -- send announcements / events to ALL servers
 
-local sectionOrder = 0
-local function section(title: string, height: number): Frame
-	sectionOrder += 1
-	local f = new("Frame", {
-		BackgroundColor3 = C.WoodLight,
-		Size = UDim2.new(1, 0, 0, height),
-		LayoutOrder = sectionOrder,
-		Parent = adminScroll,
-	})
-	UIKit.corner(f, 12)
-	UIKit.stroke(f, 3)
-	UIKit.label({ Text = title, TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.new(1, -24, 0, 28), Position = UDim2.fromOffset(14, 8), Stroke = 2.5, Parent = f })
-	return f
+local function admin(action: string, args: { [string]: any }): (boolean, any)
+	return Panels.Callbacks.Admin(action, args)
 end
 
 local function smallButton(parent: Instance, text: string, size: UDim2, position: UDim2, color: Color3, dark: Color3, onClick: () -> ()): UIKit.Button
@@ -528,24 +513,185 @@ local function smallButton(parent: Instance, text: string, size: UDim2, position
 	return b
 end
 
-local function admin(action: string, args: { [string]: any })
-	Panels.Callbacks.Admin(action, args)
+local function darker(c: Color3): Color3
+	return Color3.new(c.R * 0.6, c.G * 0.6, c.B * 0.6)
 end
 
--- announcement
-local annSection = section("📢 Announcement (everyone sees it)", 100)
-local annBox = UIKit.textbox(annSection, "Type an announcement...", UDim2.new(1, -170, 0, 46), UDim2.fromOffset(14, 44))
-smallButton(annSection, "Send", UDim2.fromOffset(130, 46), UDim2.new(1, -144, 0, 42), C.Green, C.GreenDark, function()
-	admin("Announce", { Text = annBox.Text })
+-- tab bar + "all servers" switch
+local adminTabBar = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 54), Parent = adminPanel.Content })
+local adminPages: { [string]: Frame } = {}
+local adminTabButtons: { [string]: UIKit.Button } = {}
+
+local function showAdminTab(name: string)
+	for n, p in adminPages do
+		p.Visible = n == name
+		if n == name then
+			adminTabButtons[n].SetColors(C.Yellow, C.YellowDark)
+		else
+			adminTabButtons[n].SetColors(C.WoodLight, C.WoodDark)
+		end
+	end
+end
+
+for i, tab in { { "Server", "🌍 Server" }, { "Events", "🤯 Events" }, { "Players", "👥 Players" } } do
+	local b = UIKit.button({
+		Size = UDim2.fromOffset(190, 50),
+		Position = UDim2.fromOffset((i - 1) * 202, 0),
+		Text = tab[2],
+		Parent = adminTabBar,
+		OnClick = function()
+			showAdminTab(tab[1])
+		end,
+	})
+	b.Label.TextXAlignment = Enum.TextXAlignment.Center
+	adminTabButtons[tab[1]] = b
+end
+
+local globalButton = smallButton(adminTabBar, "", UDim2.fromOffset(290, 50), UDim2.new(1, -290, 0, 0), C.Grey, C.GreyDark, function() end)
+local function refreshGlobal()
+	globalButton.SetText(if globalOn then "🌍 ALL SERVERS: ON" else "🏠 THIS SERVER ONLY")
+	globalButton.SetColors(if globalOn then C.Pink else C.Slate, if globalOn then C.PurpleDark else Color3.fromRGB(18, 22, 32))
+end
+globalButton.Clicked = function()
+	globalOn = not globalOn
+	refreshGlobal()
+end
+refreshGlobal()
+
+local function adminPage(name: string, scroll: boolean): Frame
+	local f
+	if scroll then
+		f = new("ScrollingFrame", {
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			CanvasSize = UDim2.new(),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ScrollBarThickness = 8,
+			ScrollBarImageColor3 = C.Yellow,
+			ScrollingDirection = Enum.ScrollingDirection.Y,
+		})
+		new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = f })
+		new("UIPadding", { PaddingRight = UDim.new(0, 14), PaddingBottom = UDim.new(0, 12), Parent = f })
+	else
+		f = new("Frame", { BackgroundTransparency = 1 })
+	end
+	f.Name = name
+	f.Size = UDim2.new(1, 0, 1, -66)
+	f.Position = UDim2.fromOffset(0, 66)
+	f.Visible = false
+	f.Parent = adminPanel.Content
+	adminPages[name] = f
+	return f
+end
+
+local sectionOrder = 0
+local function section(parent: Instance, title: string, height: number): Frame
+	sectionOrder += 1
+	local f = new("Frame", {
+		BackgroundColor3 = C.WoodLight,
+		Size = UDim2.new(1, 0, 0, height),
+		LayoutOrder = sectionOrder,
+		Parent = parent,
+	})
+	UIKit.corner(f, 12)
+	UIKit.stroke(f, 3)
+	UIKit.label({ Text = title, TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.new(1, -24, 0, 28), Position = UDim2.fromOffset(14, 8), Stroke = 2.5, Parent = f })
+	return f
+end
+
+local function infoText(parent: Instance, position: UDim2, size: UDim2): TextLabel
+	return UIKit.label({
+		Text = "",
+		RichText = true,
+		TextScaled = false,
+		TextSize = 20,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Size = size,
+		Position = position,
+		Stroke = 2,
+		Parent = parent,
+	})
+end
+
+local function clock(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	if seconds >= 3600 then
+		return string.format("%d:%02d:%02d", seconds // 3600, (seconds % 3600) // 60, seconds % 60)
+	end
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+local function gameState(): Instance?
+	return ReplicatedStorage:FindFirstChild("GameState")
+end
+
+----------------------------------------------------------------------
+-- Server tab
+----------------------------------------------------------------------
+local serverPage = adminPage("Server", true)
+
+local annSection = section(serverPage, "📢 Announcement (uses the server switch at the top right)", 104)
+local annBox = UIKit.textbox(annSection, "Type an announcement...", UDim2.new(1, -170, 0, 46), UDim2.fromOffset(14, 46))
+smallButton(annSection, "Send", UDim2.fromOffset(130, 46), UDim2.new(1, -144, 0, 44), C.Green, C.GreenDark, function()
+	admin("Announce", { Text = annBox.Text, Global = globalOn })
 	annBox.Text = ""
 end)
 
--- storms
-local stormSection = section("🌪️ Storms & events (whole server)", 288)
-local durations = { 1, 5, 15, 30 }
+local quickSection = section(serverPage, "⚡ Quick messages", 104)
+for i, q in { "ADMIN ABUSE STARTING! 🔥", "Thanks for playing! ❤️", "Big update soon! 👀", "Event in 5 minutes! ⏰" } do
+	smallButton(quickSection, q, UDim2.fromOffset(212, 46), UDim2.fromOffset(14 + (i - 1) * 222, 46), C.Blue, C.BlueDark, function()
+		admin("Announce", { Text = q, Global = globalOn })
+	end)
+end
+
+local infoSection = section(serverPage, "📊 This server", 210)
+local serverInfo = infoText(infoSection, UDim2.fromOffset(16, 44), UDim2.new(1, -32, 1, -52))
+
+----------------------------------------------------------------------
+-- Events tab
+----------------------------------------------------------------------
+local eventsPage = adminPage("Events", true)
+
+local crazySection = section(eventsPage, "🤯 Crazy events (10 second countdown for everyone)", 236)
+local crazyButtons: { [string]: UIKit.Button } = {}
+local crazyIndex = 0
+for _, e in Config.Events do
+	if e.Crazy then
+		local col = crazyIndex
+		crazyIndex += 1
+		local b = UIKit.button({
+			Size = UDim2.fromOffset(300, 74),
+			Position = UDim2.fromOffset(14 + col * 314, 44),
+			Color = e.Color,
+			DarkColor = darker(e.Color),
+			Text = e.Name,
+			Icon = e.Icon,
+			Studs = true,
+			Parent = crazySection,
+			Corner = 12,
+			OnClick = function()
+				admin("StartEvent", { Id = e.Id, Minutes = Config.CrazyEvents.Minutes, Global = globalOn })
+			end,
+		})
+		crazyButtons[e.Id] = b
+	end
+end
+local autoButton = smallButton(crazySection, "", UDim2.fromOffset(300, 48), UDim2.fromOffset(14, 132), C.Green, C.GreenDark, function() end)
+autoButton.Clicked = function()
+	local state = gameState()
+	admin("CrazyAuto", { On = not (state and state:GetAttribute("CrazyAuto") == true) })
+end
+smallButton(crazySection, "🎲 Random one NOW", UDim2.fromOffset(300, 48), UDim2.fromOffset(328, 132), C.Purple, C.PurpleDark, function()
+	admin("CrazyNext", { Minutes = 0 })
+end)
+local nextLabel = UIKit.label({ Text = "", TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.new(1, -30, 0, 26), Position = UDim2.fromOffset(16, 192), Stroke = 2, TextColor3 = Color3.fromRGB(255, 225, 120), Parent = crazySection })
+
+local stormSection = section(eventsPage, "🌪️ Storms (whole server)", 300)
 local chosenMinutes = 5
 local durationButtons: { [number]: UIKit.Button } = {}
-UIKit.label({ Text = "Duration:", TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.fromOffset(110, 24), Position = UDim2.fromOffset(14, 50), Stroke = 2, Parent = stormSection })
+UIKit.label({ Text = "Duration:", TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.fromOffset(110, 24), Position = UDim2.fromOffset(14, 52), Stroke = 2, Parent = stormSection })
 local function refreshDurations()
 	for m, b in durationButtons do
 		if m == chosenMinutes then
@@ -555,8 +701,8 @@ local function refreshDurations()
 		end
 	end
 end
-for i, m in durations do
-	durationButtons[m] = smallButton(stormSection, m .. " min", UDim2.fromOffset(96, 40), UDim2.fromOffset(124 + (i - 1) * 106, 42), C.WoodDark, C.Outline, function()
+for i, m in { 1, 5, 15, 30, 60 } do
+	durationButtons[m] = smallButton(stormSection, m .. " min", UDim2.fromOffset(96, 40), UDim2.fromOffset(124 + (i - 1) * 106, 44), C.WoodDark, C.Outline, function()
 		chosenMinutes = m
 		refreshDurations()
 	end)
@@ -564,74 +710,332 @@ end
 refreshDurations()
 
 local eventButtons: { [string]: UIKit.Button } = {}
-for i, e in Config.Events do
-	local col = (i - 1) % 3
-	local rowI = (i - 1) // 3
-	local b = UIKit.button({
-		Size = UDim2.fromOffset(246, 56),
-		Position = UDim2.fromOffset(14 + col * 258, 96 + rowI * 66),
-		Color = e.Color,
-		DarkColor = Color3.new(e.Color.R * 0.6, e.Color.G * 0.6, e.Color.B * 0.6),
-		Text = e.Name,
-		Icon = e.Icon,
-		Parent = stormSection,
-		Corner = 10,
-		OnClick = function()
-			admin("StartEvent", { Id = e.Id, Minutes = chosenMinutes })
-		end,
-	})
-	eventButtons[e.Id] = b
+local stormIndex = 0
+for _, e in Config.Events do
+	if not e.Crazy then
+		local col = stormIndex % 3
+		local rowI = stormIndex // 3
+		stormIndex += 1
+		eventButtons[e.Id] = UIKit.button({
+			Size = UDim2.fromOffset(280, 56),
+			Position = UDim2.fromOffset(14 + col * 292, 98 + rowI * 66),
+			Color = e.Color,
+			DarkColor = darker(e.Color),
+			Text = e.Name,
+			Icon = e.Icon,
+			Parent = stormSection,
+			Corner = 10,
+			OnClick = function()
+				admin("StartEvent", { Id = e.Id, Minutes = chosenMinutes, Global = globalOn })
+			end,
+		})
+	end
 end
-smallButton(stormSection, "⛔ Stop all storms", UDim2.fromOffset(250, 46), UDim2.fromOffset(14, 230), C.Red, C.RedDark, function()
-	admin("StopEvent", { Id = "All" })
+smallButton(stormSection, "⛔ Stop ALL events", UDim2.fromOffset(280, 46), UDim2.fromOffset(14, 240), C.Red, C.RedDark, function()
+	admin("StopEvent", { Id = "All", Global = globalOn })
 end)
 
--- players
-local giveSection = section("🎁 Give to a player (leave the name empty = yourself)", 160)
-local targetBox = UIKit.textbox(giveSection, "Player name (empty = me)", UDim2.fromOffset(380, 46), UDim2.fromOffset(14, 44))
-local amountBox = UIKit.textbox(giveSection, "Amount", UDim2.fromOffset(200, 46), UDim2.fromOffset(408, 44))
-smallButton(giveSection, "🪙 Give Coins", UDim2.fromOffset(250, 48), UDim2.fromOffset(14, 102), C.Yellow, C.YellowDark, function()
-	admin("GiveCoins", { Target = targetBox.Text, Amount = tonumber(amountBox.Text) })
+----------------------------------------------------------------------
+-- Players tab: list on the left, actions on the right
+----------------------------------------------------------------------
+local playersPage = adminPage("Players", false)
+local selectedId: number = 0 -- user id, 0 = nobody picked yet (= me)
+
+local listFrame = new("ScrollingFrame", {
+	BackgroundColor3 = C.WoodDark,
+	BorderSizePixel = 0,
+	Size = UDim2.new(0, 250, 1, 0),
+	CanvasSize = UDim2.new(),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	ScrollBarThickness = 6,
+	ScrollBarImageColor3 = C.Yellow,
+	Parent = playersPage,
+})
+UIKit.corner(listFrame, 12)
+UIKit.stroke(listFrame, 3)
+new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = listFrame })
+new("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 12), PaddingBottom = UDim.new(0, 8), Parent = listFrame })
+
+local actionScroll = new("ScrollingFrame", {
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	Size = UDim2.new(1, -264, 1, 0),
+	Position = UDim2.fromOffset(264, 0),
+	CanvasSize = UDim2.new(),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	ScrollBarThickness = 8,
+	ScrollBarImageColor3 = C.Yellow,
+	Parent = playersPage,
+})
+new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = actionScroll })
+new("UIPadding", { PaddingRight = UDim.new(0, 14), PaddingBottom = UDim.new(0, 12), Parent = actionScroll })
+
+local function selectedPlayer(): Player?
+	if selectedId == 0 then
+		return Players.LocalPlayer
+	end
+	return Players:GetPlayerByUserId(selectedId)
+end
+
+local function targetName(): string
+	local p = selectedPlayer()
+	return if p then p.Name else ""
+end
+
+-- info card
+local infoCard = section(actionScroll, "", 128)
+local headshot = new("ImageLabel", {
+	BackgroundColor3 = C.WoodDark,
+	Size = UDim2.fromOffset(96, 96),
+	Position = UDim2.fromOffset(14, 16),
+	Image = "",
+	Parent = infoCard,
+})
+UIKit.corner(headshot, 12)
+UIKit.stroke(headshot, 2.5)
+local infoName = UIKit.label({ Text = "", TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.new(1, -260, 0, 30), Position = UDim2.fromOffset(124, 14), Stroke = 2.5, Parent = infoCard })
+local infoStats = infoText(infoCard, UDim2.fromOffset(124, 50), UDim2.new(1, -140, 0, 70))
+infoStats.TextSize = 18
+local refreshInspect = function() end
+smallButton(infoCard, "🔄", UDim2.fromOffset(56, 44), UDim2.new(1, -70, 0, 12), C.Blue, C.BlueDark, function()
+	refreshInspect()
 end)
-smallButton(giveSection, "🚀 Give Turbos", UDim2.fromOffset(250, 48), UDim2.fromOffset(278, 102), C.Red, C.RedDark, function()
-	admin("GiveTurbos", { Target = targetBox.Text, Amount = tonumber(amountBox.Text) or 5 })
+
+refreshInspect = function()
+	local p = selectedPlayer()
+	if not p then
+		infoName.Text = "Player left"
+		infoStats.Text = ""
+		return
+	end
+	infoName.Text = p.DisplayName .. "  (@" .. p.Name .. ")"
+	headshot.Image = "rbxthumb://type=AvatarHeadShot&id=" .. p.UserId .. "&w=150&h=150"
+	infoStats.Text = "Loading..."
+	task.spawn(function()
+		local ok, info = admin("Inspect", { Target = p.Name })
+		if ok and type(info) == "table" and selectedPlayer() == p then
+			infoStats.Text = string.format(
+				"🪙 %s   🍬 %s   🎁 %s   🚀 %s\n🐾 %d pets   🔄 %d rebirths   🏁 best %s studs",
+				Config.Short(info.Coins), Config.Short(info.Candy), Config.Short(info.Presents), Config.Short(info.Turbos),
+				info.Pets, info.Rebirths, Config.Commas(info.BestDistance)
+			)
+		elseif selectedPlayer() == p then
+			infoStats.Text = "Couldn't load"
+		end
+	end)
+end
+
+-- give currencies
+local giveSection = section(actionScroll, "🎁 Give (use a minus amount to take away)", 160)
+local amountBox = UIKit.textbox(giveSection, "Amount", UDim2.fromOffset(220, 46), UDim2.fromOffset(14, 44))
+for i, quick in { 1000, 100000, 10000000 } do
+	smallButton(giveSection, Config.Short(quick), UDim2.fromOffset(110, 46), UDim2.fromOffset(246 + (i - 1) * 118, 44), C.WoodDark, C.Outline, function()
+		amountBox.Text = tostring(quick)
+	end)
+end
+for i, cur in { { "Coins", "🪙 Coins", C.Yellow }, { "Turbos", "🚀 Turbos", C.Red }, { "Candy", "🍬 Candy", Config.Currencies.Candy.Color }, { "Presents", "🎁 Presents", Config.Currencies.Presents.Color } } do
+	smallButton(giveSection, cur[2], UDim2.fromOffset(150, 48), UDim2.fromOffset(14 + (i - 1) * 160, 102), cur[3], darker(cur[3]), function()
+		task.spawn(function()
+			local ok = admin("GiveCurrency", { Target = targetName(), Currency = cur[1], Amount = tonumber(amountBox.Text) or (if cur[1] == "Turbos" then 5 else nil) })
+			if ok then
+				refreshInspect()
+			end
+		end)
+	end)
+end
+
+-- moderation
+local modSection = section(actionScroll, "🛠️ Moderation", 104)
+smallButton(modSection, "🧲 Bring", UDim2.fromOffset(150, 48), UDim2.fromOffset(14, 44), C.Blue, C.BlueDark, function()
+	admin("Bring", { Target = targetName() })
 end)
-smallButton(giveSection, "🍬 Give Candy", UDim2.fromOffset(250, 48), UDim2.fromOffset(542, 102), Color3.fromRGB(255, 140, 30), Color3.fromRGB(190, 80, 10), function()
-	admin("GiveCandy", { Target = targetBox.Text, Amount = tonumber(amountBox.Text) })
+smallButton(modSection, "🚪 Go to", UDim2.fromOffset(150, 48), UDim2.fromOffset(174, 44), C.Green, C.GreenDark, function()
+	admin("GoTo", { Target = targetName() })
 end)
+local kickArmed = 0
+local kickButton
+kickButton = smallButton(modSection, "👢 Kick", UDim2.fromOffset(150, 48), UDim2.fromOffset(334, 44), C.Red, C.RedDark, function()
+	if os.clock() - kickArmed > 3 then
+		kickArmed = os.clock()
+		kickButton.SetText("Sure? Click again")
+		task.delay(3, function()
+			kickButton.SetText("👢 Kick")
+		end)
+		return
+	end
+	kickArmed = 0
+	kickButton.SetText("👢 Kick")
+	admin("Kick", { Target = targetName() })
+end)
+
+-- pets: tap a pet to give it
+local petSection = section(actionScroll, "🐾 Give a pet (tap one)", 60 + math.ceil(#Pets.All / 6) * 92)
+local petGrid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -28, 1, -52), Position = UDim2.fromOffset(14, 44), Parent = petSection })
+new("UIGridLayout", { CellSize = UDim2.fromOffset(92, 84), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = petGrid })
+for i, pet in Pets.All do
+	local rarity = Pets.Rarities[pet.Rarity]
+	local tile = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundColor3 = rarity.Color, LayoutOrder = i, Parent = petGrid })
+	UIKit.corner(tile, 10)
+	UIKit.stroke(tile, 2.5)
+	UIKit.gradient(tile, { Color3.new(1, 1, 1), Color3.new(0.6, 0.6, 0.65) }, 90)
+	UIKit.label({ Text = pet.Icon, Size = UDim2.fromOffset(46, 46), Position = UDim2.new(0.5, 0, 0, 4), AnchorPoint = Vector2.new(0.5, 0), Stroke = 0, Parent = tile })
+	UIKit.label({ Text = pet.Name, Size = UDim2.new(1, -6, 0, 20), Position = UDim2.new(0.5, 0, 1, -4), AnchorPoint = Vector2.new(0.5, 1), Stroke = 2, Parent = tile })
+	tile.Activated:Connect(function()
+		Effects.play("Click", 1.2)
+		UIKit.pop(tile, 0.85)
+		if selectedPlayer() == Players.LocalPlayer then
+			Panels.closeAll() -- so you can watch your own hatch animation
+		end
+		admin("GivePet", { Target = targetName(), Pet = pet.Id })
+	end)
+end
 
 -- game passes
-local passSection = section("👑 Game passes (uses the player name above)", 52 + #Monetization.Passes * 56)
+local passSection = section(actionScroll, "👑 Game passes", 52 + #Monetization.Passes * 56)
 for i, pass in Monetization.Passes do
 	local y = 46 + (i - 1) * 56
-	UIKit.label({
-		Text = pass.Icon .. "  " .. pass.Name,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.fromOffset(300, 30),
-		Position = UDim2.fromOffset(18, y + 8),
-		Stroke = 2,
-		Parent = passSection,
-	})
-	smallButton(passSection, "Give", UDim2.fromOffset(150, 46), UDim2.fromOffset(340, y), C.Green, C.GreenDark, function()
-		admin("SetPass", { Target = targetBox.Text, Pass = pass.Key, Give = true })
+	UIKit.label({ Text = pass.Icon .. "  " .. pass.Name, TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.fromOffset(280, 30), Position = UDim2.fromOffset(18, y + 8), Stroke = 2, Parent = passSection })
+	smallButton(passSection, "Give", UDim2.fromOffset(140, 46), UDim2.fromOffset(310, y), C.Green, C.GreenDark, function()
+		admin("SetPass", { Target = targetName(), Pass = pass.Key, Give = true })
 	end)
-	smallButton(passSection, "Remove", UDim2.fromOffset(150, 46), UDim2.fromOffset(504, y), C.Red, C.RedDark, function()
-		admin("SetPass", { Target = targetBox.Text, Pass = pass.Key, Give = false })
+	smallButton(passSection, "Remove", UDim2.fromOffset(140, 46), UDim2.fromOffset(460, y), C.Red, C.RedDark, function()
+		admin("SetPass", { Target = targetName(), Pass = pass.Key, Give = false })
 	end)
 end
 
--- highlight running storms
-RunService.RenderStepped:Connect(function()
+-- player list
+local chips: { [number]: { Button: TextButton, Stroke: UIStroke } } = {}
+local function paintChips()
+	local sel = selectedPlayer()
+	for id, chip in chips do
+		local on = sel ~= nil and sel.UserId == id
+		chip.Button.BackgroundColor3 = if on then C.Yellow else C.WoodLight
+		chip.Stroke.Color = if on then C.White else C.Outline
+	end
+end
+
+local function selectPlayer(p: Player)
+	selectedId = if p == Players.LocalPlayer then 0 else p.UserId
+	paintChips()
+	refreshInspect()
+end
+
+local function rebuildList()
+	for _, c in chips do
+		c.Button:Destroy()
+	end
+	table.clear(chips)
+	local list = Players:GetPlayers()
+	table.sort(list, function(a, b)
+		if a == Players.LocalPlayer then
+			return true
+		elseif b == Players.LocalPlayer then
+			return false
+		end
+		return string.lower(a.DisplayName) < string.lower(b.DisplayName)
+	end)
+	for i, p in list do
+		local chip = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundColor3 = C.WoodLight, Size = UDim2.new(1, 0, 0, 56), LayoutOrder = i, Parent = listFrame })
+		UIKit.corner(chip, 10)
+		local stroke = UIKit.stroke(chip, 2.5)
+		local img = new("ImageLabel", {
+			BackgroundColor3 = C.WoodDark,
+			Size = UDim2.fromOffset(44, 44),
+			Position = UDim2.fromOffset(6, 6),
+			Image = "rbxthumb://type=AvatarHeadShot&id=" .. p.UserId .. "&w=48&h=48",
+			Parent = chip,
+		})
+		UIKit.round(img)
+		UIKit.label({
+			Text = p.DisplayName .. (if p == Players.LocalPlayer then " (me)" else ""),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Size = UDim2.new(1, -64, 0, 24),
+			Position = UDim2.fromOffset(58, 6),
+			Stroke = 2,
+			Parent = chip,
+		})
+		UIKit.label({
+			Text = "@" .. p.Name,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = Color3.fromRGB(255, 230, 200),
+			Size = UDim2.new(1, -64, 0, 16),
+			Position = UDim2.fromOffset(58, 32),
+			Stroke = 1.5,
+			Parent = chip,
+		})
+		chip.Activated:Connect(function()
+			Effects.play("Click", 1.2)
+			selectPlayer(p)
+		end)
+		chips[p.UserId] = { Button = chip, Stroke = stroke }
+	end
+	if not selectedPlayer() then
+		selectedId = 0
+	end
+	paintChips()
+end
+Players.PlayerAdded:Connect(rebuildList)
+Players.PlayerRemoving:Connect(function()
+	task.defer(rebuildList)
+end)
+rebuildList()
+
+adminPanel.Root:GetPropertyChangedSignal("Visible"):Connect(function()
+	if adminPanel.Root.Visible then
+		rebuildList()
+		refreshInspect()
+	end
+end)
+
+showAdminTab("Server")
+
+----------------------------------------------------------------------
+-- Live info (only while the panel is open)
+----------------------------------------------------------------------
+local infoTick = 0
+RunService.RenderStepped:Connect(function(dt)
 	if not adminPanel.IsOpen then
 		return
 	end
-	local state = ReplicatedStorage:FindFirstChild("GameState")
-	local t = workspace:GetServerTimeNow()
-	for id, b in eventButtons do
-		local ends = state and state:GetAttribute("Event_" .. id)
-		local on = type(ends) == "number" and ends > t
-		b.SetText(Config.EventById[id].Name .. (if on then " ✔" else ""))
+	infoTick += dt
+	if infoTick < 0.25 then
+		return
 	end
+	infoTick = 0
+	local state = gameState()
+	local t = workspace:GetServerTimeNow()
+	local running = {}
+	for _, e in Config.Events do
+		local ends = state and state:GetAttribute("Event_" .. e.Id)
+		local on = type(ends) == "number" and ends > t
+		if on then
+			table.insert(running, e.Icon .. " " .. e.Name .. " (" .. clock(ends - t) .. ")")
+		end
+		local b = eventButtons[e.Id] or crazyButtons[e.Id]
+		if b then
+			b.SetText(e.Name .. (if on then " ✔" else ""))
+		end
+	end
+	local auto = state and state:GetAttribute("CrazyAuto") == true
+	autoButton.SetText(if auto then "🎲 Random events: ON" else "🎲 Random events: OFF")
+	autoButton.SetColors(if auto then C.Green else C.Grey, if auto then C.GreenDark else C.GreyDark)
+	local incoming = state and state:GetAttribute("CrazyIncoming")
+	local nextAt = state and state:GetAttribute("NextCrazy")
+	if type(incoming) == "string" and incoming ~= "" then
+		nextLabel.Text = "⏳ " .. Config.EventById[incoming].Name .. " is starting!"
+	elseif auto and type(nextAt) == "number" then
+		nextLabel.Text = "⏱️ Next random crazy event in " .. clock(nextAt - t)
+	else
+		nextLabel.Text = "Random crazy events are off"
+	end
+	local started = state and state:GetAttribute("ServerStart")
+	serverInfo.Text = string.format(
+		"👥 Players: <b>%d / %d</b>\n⏱️ Server up for: <b>%s</b>\n🌪️ Running: %s\n🎲 Next crazy event: %s",
+		#Players:GetPlayers(), Players.MaxPlayers,
+		clock(if type(started) == "number" then t - started else 0),
+		if #running > 0 then table.concat(running, ", ") else "nothing",
+		if auto and type(nextAt) == "number" then clock(nextAt - t) else "off"
+	)
 end)
 
 ----------------------------------------------------------------------

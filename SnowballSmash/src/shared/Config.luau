@@ -79,7 +79,7 @@ Config.Branches = {
 		BaseCost = 6000, Growth = 3.8, From = "Air3", Cells = { { -3, -3 }, { -4, -3 }, { -5, -3 }, { -6, -3 } } },
 	{ Id = "PetStorage", Name = "Pet Storage", Icon = "🎒", Stat = "Pet storage", Desc = "Hold more pets in your inventory.", Per = 15, Unit = " pets",
 		BaseCost = 3000, Growth = 4, From = "Steer4", Cells = { { -4, -1 }, { -5, -1 }, { -6, -1 } } },
-	{ Id = "Candy", Name = "Candy Collector", Icon = "🍬", Stat = "Candy", Desc = "Get more Halloween candy from pumpkins and ghost snowmen.", Per = 25, Unit = "%",
+	{ Id = "Candy", Name = "Treat Collector", Icon = "🍬", Stat = "Candy & presents", Desc = "Get more Halloween candy and Winter presents from event obstacles.", Per = 25, Unit = "%",
 		BaseCost = 2000, Growth = 3.5, From = "Steer4", Cells = { { -5, 1 }, { -6, 2 }, { -7, 3 }, { -8, 4 } } },
 	{ Id = "TurboTime", Name = "Turbo Time", Icon = "⏱️", Stat = "Turbo length", Desc = "Your Turbo Boost lasts longer.", Per = 0.5, Unit = "s",
 		BaseCost = 4000, Growth = 4, From = "Boost3", Cells = { { -3, 6 }, { -3, 7 }, { -3, 8 } } },
@@ -199,7 +199,7 @@ export type Skin = {
 	Transparency: number,
 	Trail: Color3,
 	Pass: string?, -- game pass key needed instead of coins (see Monetization)
-	Currency: string?, -- "Candy" = bought with Halloween candy instead of coins
+	Currency: string?, -- "Candy" / "Presents" = bought with event currency instead of coins
 	Rainbow: boolean?,
 }
 
@@ -220,6 +220,8 @@ Config.Skins = {
 		Material = Enum.Material.Neon, Transparency = 0, Trail = Color3.fromRGB(255, 255, 255), Pass = "RainbowBall", Rainbow = true },
 	{ Id = "Pumpkin", Name = "Pumpkin Ball", Price = 750, Currency = "Candy", Bonus = 0.75, Color = Color3.fromRGB(255, 130, 20), Clump = Color3.fromRGB(60, 160, 60),
 		Material = Enum.Material.SmoothPlastic, Transparency = 0, Trail = Color3.fromRGB(255, 160, 40) },
+	{ Id = "CandyCane", Name = "Candy Cane Ball", Price = 900, Currency = "Presents", Bonus = 1, Color = Color3.fromRGB(235, 40, 50), Clump = Color3.fromRGB(255, 255, 255),
+		Material = Enum.Material.SmoothPlastic, Transparency = 0, Trail = Color3.fromRGB(255, 90, 90) },
 } :: { Skin }
 
 Config.SkinById = {} :: { [string]: Skin }
@@ -235,9 +237,30 @@ end
 -- Set Enabled = false after Halloween; candy and Halloween pets are kept.
 ----------------------------------------------------------------------
 Config.Halloween = {
-	Enabled = true,
+	Enabled = false, -- Halloween is over: candy, Spooky pets and the Pumpkin Ball are kept
 	NightLook = true,
 	SpawnChance = 0.22, -- share of obstacles that are pumpkins / ghost snowmen
+}
+
+----------------------------------------------------------------------
+-- WINTER EVENT (Update 3)
+-- Enabled = true: giant presents + gingerbread houses on the mountain drop
+-- Presents, the Winter Egg and the Candy Cane Ball show up, the lobby gets a
+-- giant Christmas tree and lights.
+-- NightLook = true: cosy blue evening lighting.
+-- Set Enabled = false after winter; presents and Winter pets are kept.
+----------------------------------------------------------------------
+Config.Winter = {
+	Enabled = true,
+	NightLook = true,
+	SpawnChance = 0.2, -- share of obstacles that are giant presents / gingerbread houses
+}
+
+-- Event currencies (Coins are the main currency)
+Config.Currencies = {
+	Coins = { Icon = "🪙", Name = "coins", Color = Color3.fromRGB(255, 214, 50) },
+	Candy = { Icon = "🍬", Name = "candy", Color = Color3.fromRGB(255, 150, 40) },
+	Presents = { Icon = "🎁", Name = "presents", Color = Color3.fromRGB(255, 95, 110) },
 }
 
 ----------------------------------------------------------------------
@@ -289,16 +312,25 @@ export type EventDef = {
 	GrowthMult: number?,
 	LaunchMult: number?,
 	CritBonus: number?,
-	Mutation: boolean?,
+	Mutations: { string }?, -- mutation ids (see Config.Mutations) obstacles can roll
+	AirMult: number?,
+	GravityMult: number?,
+	HatchLuck: number?,
+	Crazy: boolean?, -- a big "admin abuse" style event (see Config.CrazyEvents)
 }
 
 Config.Events = {
 	{ Id = "Coins2", Name = "x2 Coins Storm", Icon = "💰", Desc = "All coins doubled!", Color = Color3.fromRGB(90, 220, 70), CoinMult = 2 },
 	{ Id = "Coins3", Name = "x3 Coins Storm", Icon = "🤑", Desc = "All coins tripled!", Color = Color3.fromRGB(40, 190, 90), CoinMult = 3 },
-	{ Id = "Mutation", Name = "Mutation Storm", Icon = "🔮", Desc = "Obstacles mutate into Golden (x3) and Diamond (x8)!", Color = Color3.fromRGB(190, 90, 255), Mutation = true },
+	{ Id = "Mutation", Name = "Mutation Storm", Icon = "🔮", Desc = "Obstacles mutate into Golden (x3) and Diamond (x8)!", Color = Color3.fromRGB(190, 90, 255), Mutations = { "Diamond", "Golden" } },
 	{ Id = "Growth", Name = "Mega Growth", Icon = "⛄", Desc = "Snowballs grow twice as fast!", Color = Color3.fromRGB(110, 200, 255), GrowthMult = 2 },
 	{ Id = "Speed", Name = "Blizzard Speed", Icon = "🌪️", Desc = "Launch 50% faster!", Color = Color3.fromRGB(60, 150, 255), LaunchMult = 1.5 },
 	{ Id = "Lucky", Name = "Lucky Storm", Icon = "🍀", Desc = "+25% critical chance!", Color = Color3.fromRGB(80, 210, 120), CritBonus = 0.25 },
+	-- CRAZY EVENTS: start on their own every so often (and from the admin panel)
+	{ Id = "Meteor", Name = "Meteor Shower", Icon = "☄️", Desc = "Meteors crash into the lobby - grab the glowing shards! Obstacles turn MOLTEN (x10)!",
+		Color = Color3.fromRGB(255, 90, 40), Crazy = true, Mutations = { "Molten" }, CoinMult = 1.5 },
+	{ Id = "Galaxy", Name = "Galaxy Event", Icon = "🌌", Desc = "Low gravity, x2 hatch luck, huge jumps and GALAXY obstacles (x15)!",
+		Color = Color3.fromRGB(150, 90, 255), Crazy = true, Mutations = { "Galaxy" }, AirMult = 1.8, GravityMult = 0.55, HatchLuck = 2 },
 } :: { EventDef }
 
 Config.EventById = {} :: { [string]: EventDef }
@@ -306,12 +338,52 @@ for _, e in Config.Events do
 	Config.EventById[e.Id] = e
 end
 
--- Mutations rolled per obstacle while a Mutation Storm is on
+-- Mutations an obstacle can roll while an event that lists them is on
 Config.Mutations = {
 	{ Id = "Diamond", Chance = 0.08, Mult = 8, Color = Color3.fromRGB(120, 235, 255), Material = Enum.Material.Glass },
 	{ Id = "Golden", Chance = 0.25, Mult = 3, Color = Color3.fromRGB(255, 200, 40), Material = Enum.Material.Foil },
+	{ Id = "Molten", Chance = 0.22, Mult = 10, Color = Color3.fromRGB(255, 90, 20), Material = Enum.Material.CrackedLava },
+	{ Id = "Galaxy", Chance = 0.2, Mult = 15, Color = Color3.fromRGB(120, 60, 255), Material = Enum.Material.Neon },
 }
-Config.MaxMutationMult = 8
+Config.MutationById = {}
+for _, m in Config.Mutations do
+	Config.MutationById[m.Id] = m
+end
+
+-- Highest mutation multiplier among a list of mutation ids
+function Config.MaxMutationMult(ids: { string }?): number
+	local best = 1
+	local list: { string } = ids or {}
+	for _, id in list do
+		local m = Config.MutationById[id]
+		if m then
+			best = math.max(best, m.Mult)
+		end
+	end
+	return best
+end
+
+----------------------------------------------------------------------
+-- CRAZY EVENTS (like admin abuse in Steal a Brainrot)
+-- Every MinMinutes-MaxMinutes one random event from Pool starts by itself
+-- for Minutes, after a big WarningSeconds countdown for the whole server.
+----------------------------------------------------------------------
+Config.CrazyEvents = {
+	Auto = true,
+	MinMinutes = 30,
+	MaxMinutes = 50,
+	Minutes = 5,
+	WarningSeconds = 10,
+	Pool = { "Meteor", "Galaxy" },
+	-- Meteor Shower: a meteor crashes into the lobby every ShardEvery seconds and
+	-- leaves a glowing shard; touching it pays max(ShardMinCoins, best run x ShardBestShare)
+	ShardEvery = 2.5,
+	ShardLifetime = 25,
+	ShardMinCoins = 300,
+	ShardBestShare = 0.25,
+	-- Galaxy Event: lobby gravity multiplier (everyone jumps sky high)
+	LobbyGravity = 0.35,
+}
 
 ----------------------------------------------------------------------
 -- Stats derived from upgrades / rebirths / skin / passes / events
@@ -329,11 +401,13 @@ export type Stats = {
 	Crit: number,
 	Boost: number,
 	Air: number,
-	Mutation: boolean,
+	Gravity: number,
+	Mutations: { string },
+	MutationKey: string,
 	TurboTime: number,
 }
 
--- extras: { CoinMult, GrowthMult, LaunchMult, CritBonus, StartRadiusBonus, Mutation }
+-- extras: { CoinMult, GrowthMult, LaunchMult, CritBonus, StartRadiusBonus, Mutations, AirMult, GravityMult }
 function Config.ComputeStats(owned: { [string]: boolean }, rebirths: number, skinId: string?, extras: { [string]: any }?): Stats
 	local P = Config.Physics
 	local e = extras or {}
@@ -353,8 +427,10 @@ function Config.ComputeStats(owned: { [string]: boolean }, rebirths: number, ski
 		Friction = P.BaseFriction * (1 - 0.12 * lv("Slick")),
 		Crit = P.BaseCrit + 0.05 * lv("Lucky") + (e.CritBonus or 0),
 		Boost = P.BaseBoost * (1 + 0.3 * lv("Boost")),
-		Air = 1 + 0.25 * lv("Air"),
-		Mutation = e.Mutation == true,
+		Air = (1 + 0.25 * lv("Air")) * (e.AirMult or 1),
+		Gravity = P.Gravity * (e.GravityMult or 1),
+		Mutations = e.Mutations or {},
+		MutationKey = table.concat(e.Mutations or {}, ","),
 		TurboTime = Config.Turbo.Duration + 0.5 * lv("TurboTime"),
 	}
 end

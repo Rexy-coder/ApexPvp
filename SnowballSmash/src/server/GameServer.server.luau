@@ -8,8 +8,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local TextService = game:GetService("TextService")
+local MessagingService = game:GetService("MessagingService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local Debris = game:GetService("Debris")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -65,6 +67,18 @@ if not Config.Halloween.Enabled then
 		spookyEgg:Destroy()
 	end
 end
+if not Config.Winter.Enabled then
+	local lobby = Workspace:FindFirstChild("Lobby")
+	local winter = lobby and lobby:FindFirstChild("Winter", true)
+	if winter then
+		winter:Destroy()
+	end
+	local winterEgg = lobby and lobby:FindFirstChild("Egg_Winter", true)
+	if winterEgg then
+		winterEgg:Destroy()
+	end
+end
+GameState:SetAttribute("ServerStart", Workspace:GetServerTimeNow())
 
 ----------------------------------------------------------------------
 -- Data
@@ -97,6 +111,8 @@ local function defaultData()
 		DailyStreak = 0,
 		LastDaily = -1, -- day number of the last claim
 		Codes = {}, -- redeemed codes
+		-- Update 3
+		Presents = 0,
 	}
 end
 
@@ -192,7 +208,7 @@ end
 
 local function extrasFor(player: Player)
 	local data = profiles[player]
-	local extras = { CoinMult = 1, GrowthMult = 1, LaunchMult = 1, CritBonus = 0, StartRadiusBonus = 0, Mutation = false }
+	local extras = { CoinMult = 1, GrowthMult = 1, LaunchMult = 1, CritBonus = 0, StartRadiusBonus = 0, Mutations = {}, AirMult = 1, GravityMult = 1 }
 	if hasPass(player, "VIP") then
 		extras.CoinMult *= 1 + Perks.VIPCoinBonus
 	end
@@ -231,8 +247,12 @@ local function extrasFor(player: Player)
 			extras.GrowthMult *= e.GrowthMult or 1
 			extras.LaunchMult *= e.LaunchMult or 1
 			extras.CritBonus += e.CritBonus or 0
-			if e.Mutation then
-				extras.Mutation = true
+			extras.AirMult *= e.AirMult or 1
+			extras.GravityMult *= e.GravityMult or 1
+			for _, id in e.Mutations or {} do
+				if not table.find(extras.Mutations, id) then
+					table.insert(extras.Mutations, id)
+				end
 			end
 		end
 	end
@@ -333,7 +353,10 @@ local function stopEvent(id: string)
 	end
 end
 
--- expire storms
+local Crazy = Config.CrazyEvents
+local baseGravity = Workspace.Gravity
+
+-- expire storms, low gravity during the Galaxy Event
 task.spawn(function()
 	while true do
 		task.wait(1)
@@ -343,6 +366,161 @@ task.spawn(function()
 				GameState:SetAttribute("Event_" .. e.Id, 0)
 				notify(nil, "EventEnded", { Id = e.Id })
 			end
+		end
+		local gravity = if eventActive("Galaxy") then baseGravity * Crazy.LobbyGravity else baseGravity
+		if Workspace.Gravity ~= gravity then
+			Workspace.Gravity = gravity
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- Crazy events (Meteor Shower, Galaxy Event): a big countdown for the
+-- whole server, then the event. They also start by themselves.
+----------------------------------------------------------------------
+GameState:SetAttribute("CrazyAuto", Crazy.Auto)
+GameState:SetAttribute("CrazyIncoming", "")
+GameState:SetAttribute("CrazyIncomingAt", 0)
+GameState:SetAttribute("NextCrazy", 0)
+
+local function crazyBusy(): boolean
+	if GameState:GetAttribute("CrazyIncoming") ~= "" then
+		return true
+	end
+	for _, e in Config.Events do
+		if e.Crazy and eventActive(e.Id) then
+			return true
+		end
+	end
+	return false
+end
+
+local function startCrazy(id: string, minutes: number, by: string): (boolean, string?)
+	local def = Config.EventById[id]
+	if not def or not def.Crazy then
+		return false, "Unknown event"
+	end
+	if GameState:GetAttribute("CrazyIncoming") ~= "" then
+		return false, "An event is already starting!"
+	end
+	local at = now() + Crazy.WarningSeconds
+	GameState:SetAttribute("CrazyIncoming", id)
+	GameState:SetAttribute("CrazyIncomingAt", at)
+	notify(nil, "CrazyIncoming", { Id = id, At = at, By = by })
+	task.delay(Crazy.WarningSeconds, function()
+		if GameState:GetAttribute("CrazyIncoming") ~= id then
+			return -- cancelled by an admin
+		end
+		GameState:SetAttribute("CrazyIncoming", "")
+		GameState:SetAttribute("CrazyIncomingAt", 0)
+		startEvent(id, minutes, by, true)
+	end)
+	return true, nil
+end
+
+local function cancelCrazyCountdown()
+	GameState:SetAttribute("CrazyIncoming", "")
+	GameState:SetAttribute("CrazyIncomingAt", 0)
+end
+
+-- automatic crazy events
+task.spawn(function()
+	while true do
+		GameState:SetAttribute("NextCrazy", now() + rng:NextNumber(Crazy.MinMinutes, Crazy.MaxMinutes) * 60)
+		while now() < (GameState:GetAttribute("NextCrazy") or 0) do
+			task.wait(1)
+		end
+		if GameState:GetAttribute("CrazyAuto") == true and not crazyBusy() then
+			startCrazy(Crazy.Pool[rng:NextInteger(1, #Crazy.Pool)], Crazy.Minutes, "the Mountain")
+		end
+	end
+end)
+
+-- Meteor Shower: meteors crash into the lobby and leave shards worth coins
+local shardFolder = Instance.new("Folder")
+shardFolder.Name = "MeteorShards"
+shardFolder.Parent = Workspace
+local LOBBY_Y = CourseGen.Origin.Y
+
+local function spawnShard(pos: Vector3)
+	local shard = Instance.new("Part")
+	shard.Name = "MeteorShard"
+	shard.Anchored = true
+	shard.CanCollide = false
+	shard.CanQuery = false
+	shard.Size = Vector3.new(2.6, 4.2, 2.6)
+	shard.CFrame = CFrame.new(pos + Vector3.new(0, 2.4, 0)) * CFrame.Angles(0.25, rng:NextNumber(0, 6.28), 0.2)
+	shard.Material = Enum.Material.Neon
+	shard.Color = Color3.fromRGB(255, 120, 30)
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 140, 40)
+	light.Range = 16
+	light.Brightness = 3
+	light.Parent = shard
+	local fire = Instance.new("ParticleEmitter")
+	fire.Color = ColorSequence.new(Color3.fromRGB(255, 220, 90), Color3.fromRGB(255, 70, 20))
+	fire.LightEmission = 1
+	fire.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.2), NumberSequenceKeypoint.new(1, 0) })
+	fire.Lifetime = NumberRange.new(0.6, 1.1)
+	fire.Rate = 20
+	fire.Speed = NumberRange.new(3, 7)
+	fire.SpreadAngle = Vector2.new(25, 25)
+	fire.Parent = shard
+	local tag = Instance.new("BillboardGui")
+	tag.Size = UDim2.fromOffset(120, 40)
+	tag.StudsOffset = Vector3.new(0, 4, 0)
+	tag.MaxDistance = 80
+	tag.LightInfluence = 0
+	tag.AlwaysOnTop = true
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.Text = "☄️ GRAB!"
+	label.TextColor3 = Color3.fromRGB(255, 200, 80)
+	label.Parent = tag
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2.5
+	stroke.Color = Color3.fromRGB(40, 10, 0)
+	stroke.Parent = label
+	tag.Parent = shard
+	shard.Parent = shardFolder
+
+	local taken = false
+	shard.Touched:Connect(function(hit)
+		if taken then
+			return
+		end
+		local character = hit:FindFirstAncestorOfClass("Model")
+		local p = character and Players:GetPlayerFromCharacter(character)
+		local data = p and profiles[p]
+		if not p or not data then
+			return
+		end
+		taken = true
+		local coins = math.max(Crazy.ShardMinCoins, math.floor(data.BestEarn * Crazy.ShardBestShare))
+		data.Coins += coins
+		data.TotalEarned += coins
+		push(p)
+		notify(p, "Shard", { Coins = coins })
+		shard:Destroy()
+	end)
+	Debris:AddItem(shard, Crazy.ShardLifetime)
+end
+
+task.spawn(function()
+	while true do
+		task.wait(Crazy.ShardEvery)
+		if eventActive("Meteor") then
+			local pos = Vector3.new(rng:NextNumber(-82, 82), LOBBY_Y, rng:NextNumber(8, 124))
+			local fall = 1.4
+			notify(nil, "Meteor", { Pos = pos, At = now() + fall })
+			task.delay(fall, function()
+				spawnShard(pos)
+			end)
+		elseif #shardFolder:GetChildren() > 0 and not eventActive("Meteor") then
+			shardFolder:ClearAllChildren()
 		end
 	end
 end)
@@ -356,9 +534,15 @@ local function equipSlots(player: Player): number
 	return Pets.BaseEquipSlots + (if hasPass(player, "ExtraPets") then Pets.ExtraSlotsPass else 0)
 end
 
--- Lucky Eggs pass x Hatch Luck upgrades
+-- Lucky Eggs pass x Hatch Luck upgrades x events (Galaxy Event)
 local function hatchLuck(player: Player, data): number
-	return (if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1) * Config.HatchLuckMult(data.Owned)
+	local luck = (if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1) * Config.HatchLuckMult(data.Owned)
+	for _, e in Config.Events do
+		if e.HatchLuck and eventActive(e.Id) then
+			luck *= e.HatchLuck
+		end
+	end
+	return luck
 end
 
 local function petCount(data): number
@@ -414,6 +598,7 @@ local function grantReward(player: Player, data, reward)
 	data.Coins += reward.Coins or 0
 	data.Turbos += reward.Turbos or 0
 	data.Candy += reward.Candy or 0
+	data.Presents += reward.Presents or 0
 	if reward.Egg and Pets.EggById[reward.Egg] then
 		hatched = Pets.Roll(reward.Egg, hatchLuck(player, data), rng)
 		givePet(player, data, hatched)
@@ -543,6 +728,8 @@ local function grantProduct(player: Player, data, product)
 		startEvent("Coins2", product.Minutes, player.DisplayName, true)
 	elseif product.Kind == "Candy" then
 		data.Candy += product.Amount
+	elseif product.Kind == "Presents" then
+		data.Presents += product.Amount
 	elseif product.Kind == "LegendaryPet" then
 		local petId = Pets.RollLegendary(rng)
 		givePet(player, data, petId, true)
@@ -631,7 +818,7 @@ FinishRun.OnServerInvoke = function(player, report)
 	-- Generous upper bound: everything on the course so far smashed at max combo,
 	-- max size, always critical and (during a Mutation Storm) always Diamond.
 	local sizeBonusMax = 1 + (stats.MaxRadius - P.StartRadius) / P.SizeBonusDiv
-	local mutation = if stats.Mutation then Config.MaxMutationMult else 1
+	local mutation = Config.MaxMutationMult(stats.Mutations)
 	local cap = CourseGen.ValueUpTo(distance + 50, P.PickupValue) * P.MaxCombo * sizeBonusMax * 2 * mutation * stats.CoinMult
 	local smashCoins = math.clamp(tonumber(report.SmashCoins) or 0, 0, cap)
 	if smashCoins ~= smashCoins then
@@ -644,6 +831,12 @@ FinishRun.OnServerInvoke = function(player, report)
 		candy = math.clamp(math.floor(tonumber(report.Candy) or 0), 0, CourseGen.CandyUpTo(distance + 50))
 		candy = math.floor(candy * Config.CandyMult(data.Owned))
 		data.Candy += candy
+	end
+	local presents = 0
+	if Config.Winter.Enabled then
+		presents = math.clamp(math.floor(tonumber(report.Presents) or 0), 0, CourseGen.PresentsUpTo(distance + 50))
+		presents = math.floor(presents * Config.CandyMult(data.Owned))
+		data.Presents += presents
 	end
 	leaderboardDirty[player] = true
 
@@ -664,6 +857,7 @@ FinishRun.OnServerInvoke = function(player, report)
 		Smashed = smashed,
 		Combo = combo,
 		Candy = candy,
+		Presents = presents,
 	}
 end
 
@@ -698,9 +892,9 @@ BuySkin.OnServerInvoke = function(player, skinId)
 		end
 		data.Skins[skin.Id] = true
 	elseif not data.Skins[skin.Id] then
-		local field = if skin.Currency == "Candy" then "Candy" else "Coins"
-		if data[field] < skin.Price then
-			return false, if field == "Candy" then "Not enough candy!" else "Not enough coins!"
+		local field = skin.Currency or "Coins"
+		if (data[field] or 0) < skin.Price then
+			return false, "Not enough " .. Config.Currencies[field].Name .. "!"
 		end
 		data[field] -= skin.Price
 		data.Skins[skin.Id] = true
@@ -770,7 +964,79 @@ local function filterBroadcast(text: string, from: Player): string?
 	return nil
 end
 
+----------------------------------------------------------------------
+-- Global admin actions (every server) through MessagingService
+----------------------------------------------------------------------
+local ADMIN_TOPIC = "SnowballSmashAdmin"
+local subscribed = false
+
+local function stopAllEvents()
+	cancelCrazyCountdown()
+	for _, e in Config.Events do
+		stopEvent(e.Id)
+	end
+end
+
+-- runs one admin message on THIS server
+local function runAdminMessage(msg)
+	if type(msg) ~= "table" then
+		return
+	end
+	if msg.Kind == "Announce" and type(msg.Text) == "string" then
+		notify(nil, "Announcement", { Text = msg.Text, From = tostring(msg.From), Global = msg.Global == true })
+	elseif msg.Kind == "Event" and Config.EventById[msg.Id] then
+		local minutes = math.clamp(tonumber(msg.Minutes) or 5, 1, 240)
+		if Config.EventById[msg.Id].Crazy then
+			startCrazy(msg.Id, minutes, tostring(msg.By))
+		else
+			startEvent(msg.Id, minutes, tostring(msg.By), false)
+		end
+	elseif msg.Kind == "StopAll" then
+		stopAllEvents()
+	end
+end
+
+task.spawn(function()
+	local ok, err = pcall(function()
+		MessagingService:SubscribeAsync(ADMIN_TOPIC, function(message)
+			runAdminMessage(message.Data)
+		end)
+	end)
+	subscribed = ok
+	if not ok then
+		warn("[SnowballSmash] Global admin messages unavailable:", err)
+	end
+end)
+
+-- global = true: every server (falls back to just this one if that fails)
+local function adminSend(msg, global: boolean): boolean
+	if global then
+		msg.Global = true
+		local ok = pcall(function()
+			MessagingService:PublishAsync(ADMIN_TOPIC, msg)
+		end)
+		if ok and subscribed then
+			return true -- our own subscription runs it here too
+		end
+		runAdminMessage(msg)
+		return ok
+	end
+	runAdminMessage(msg)
+	return true
+end
+
+----------------------------------------------------------------------
+-- Admin actions
+----------------------------------------------------------------------
 local actions = {}
+
+local function targetOf(admin: Player, args): (Player?, any)
+	local target = findPlayer(admin, args.Target)
+	if not target or not profiles[target] then
+		return nil, nil
+	end
+	return target, profiles[target]
+end
 
 actions.Announce = function(admin: Player, args)
 	local text = tostring(args.Text or "")
@@ -786,80 +1052,178 @@ actions.Announce = function(admin: Player, args)
 		return false, "Could not filter the message, try again"
 	end
 	lastAnnounce[admin] = os.clock()
-	notify(nil, "Announcement", { Text = filtered, From = admin.DisplayName })
-	return true, "Announcement sent!"
+	local global = args.Global == true
+	local ok = adminSend({ Kind = "Announce", Text = filtered, From = admin.DisplayName }, global)
+	if global and not ok then
+		return true, "Sent here (other servers couldn't be reached)"
+	end
+	return true, if global then "Announcement sent to ALL servers!" else "Announcement sent!"
 end
 
 actions.StartEvent = function(admin: Player, args)
 	local minutes = math.clamp(tonumber(args.Minutes) or 5, 1, 240)
-	if not Config.EventById[args.Id] then
-		return false, "Unknown storm"
+	local def = Config.EventById[args.Id]
+	if not def then
+		return false, "Unknown event"
 	end
-	startEvent(args.Id, minutes, admin.DisplayName, false)
-	return true, Config.EventById[args.Id].Name .. " started for " .. minutes .. " min"
+	if def.Crazy and GameState:GetAttribute("CrazyIncoming") ~= "" and args.Global ~= true then
+		return false, "An event is already starting!"
+	end
+	local global = args.Global == true
+	adminSend({ Kind = "Event", Id = def.Id, Minutes = minutes, By = admin.DisplayName }, global)
+	return true, def.Name .. (if def.Crazy then " incoming" else " started") .. " (" .. minutes .. " min)" .. (if global then " in ALL servers!" else "")
 end
 
 actions.StopEvent = function(_admin: Player, args)
 	if args.Id == "All" then
-		for _, e in Config.Events do
-			stopEvent(e.Id)
-		end
-		return true, "All storms stopped"
+		adminSend({ Kind = "StopAll" }, args.Global == true)
+		return true, "All events stopped"
 	end
 	stopEvent(args.Id)
-	return true, "Storm stopped"
+	return true, "Event stopped"
 end
 
-actions.GiveCoins = function(admin: Player, args)
-	local target = findPlayer(admin, args.Target)
-	local amount = math.floor(tonumber(args.Amount) or 0)
-	if not target or not profiles[target] then
+actions.CrazyAuto = function(_admin: Player, args)
+	local on = args.On == true
+	GameState:SetAttribute("CrazyAuto", on)
+	return true, if on then "Random crazy events: ON" else "Random crazy events: OFF"
+end
+
+actions.CrazyNext = function(_admin: Player, args)
+	local minutes = math.clamp(tonumber(args.Minutes) or 0, 0, 240)
+	GameState:SetAttribute("NextCrazy", now() + minutes * 60)
+	return true, if minutes == 0 then "Next crazy event starts now!" else "Next crazy event in " .. minutes .. " min"
+end
+
+local CURRENCY_FIELDS = { Coins = "coins", Candy = "candy", Presents = "presents", Turbos = "Turbos" }
+
+actions.GiveCurrency = function(admin: Player, args)
+	local target, data = targetOf(admin, args)
+	local field = args.Currency
+	if not target then
 		return false, "Player not found"
 	end
+	if type(field) ~= "string" or not CURRENCY_FIELDS[field] then
+		return false, "Unknown currency"
+	end
+	local amount = math.floor(tonumber(args.Amount) or 0)
 	if amount == 0 or amount ~= amount then
 		return false, "Enter an amount"
 	end
 	amount = math.clamp(amount, -1e15, 1e15)
-	local data = profiles[target]
-	data.Coins = math.max(0, data.Coins + amount)
+	data[field] = math.max(0, (data[field] or 0) + amount)
 	push(target)
-	if target ~= admin then
-		notify(target, "Gift", { Text = "An admin gave you " .. Config.Commas(amount) .. " coins!" })
+	local what = Config.Commas(amount) .. " " .. CURRENCY_FIELDS[field]
+	if target ~= admin and amount > 0 then
+		notify(target, "Gift", { Text = "An admin gave you " .. what .. "!" })
 	end
-	return true, "Gave " .. Config.Commas(amount) .. " coins to " .. target.DisplayName
+	return true, (if amount > 0 then "Gave " else "Took ") .. what .. (if amount > 0 then " to " else " from ") .. target.DisplayName
 end
 
-actions.GiveTurbos = function(admin: Player, args)
-	local target = findPlayer(admin, args.Target)
-	local amount = math.clamp(math.floor(tonumber(args.Amount) or 5), 1, 1000)
-	if not target or not profiles[target] then
+actions.GivePet = function(admin: Player, args)
+	local target, data = targetOf(admin, args)
+	local pet = if type(args.Pet) == "string" then Pets.ById[args.Pet] else nil
+	if not target then
 		return false, "Player not found"
 	end
-	profiles[target].Turbos += amount
-	push(target)
-	if target ~= admin then
-		notify(target, "Gift", { Text = "An admin gave you " .. amount .. " Turbos!" })
+	if not pet then
+		return false, "Pick a pet"
 	end
-	return true, "Gave " .. amount .. " Turbos to " .. target.DisplayName
+	givePet(target, data, pet.Id, true)
+	push(target)
+	notify(target, "PetGranted", { Pets = { pet.Id } })
+	if target ~= admin then
+		notify(target, "Gift", { Text = "An admin gave you " .. pet.Icon .. " " .. pet.Name .. "!" })
+	end
+	return true, "Gave " .. pet.Name .. " to " .. target.DisplayName
 end
 
 actions.SetPass = function(admin: Player, args)
-	local target = findPlayer(admin, args.Target)
+	local target, data = targetOf(admin, args)
 	local pass = Monetization.PassByKey[args.Pass]
-	if not target or not profiles[target] then
+	if not target then
 		return false, "Player not found"
 	end
 	if not pass then
 		return false, "Unknown pass"
 	end
 	local give = args.Give == true
-	profiles[target].GrantedPasses[pass.Key] = if give then true else nil
+	data.GrantedPasses[pass.Key] = if give then true else nil
 	refreshPassAttributes(target)
 	push(target)
 	if give and target ~= admin then
 		notify(target, "Gift", { Text = "An admin gave you the " .. pass.Name .. " pass! " .. pass.Icon })
 	end
 	return true, (if give then "Gave " else "Removed ") .. pass.Name .. (if give then " to " else " from ") .. target.DisplayName
+end
+
+local function rootOf(p: Player): BasePart?
+	local character = p.Character
+	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+actions.Bring = function(admin: Player, args)
+	local target = findPlayer(admin, args.Target)
+	local from, to = target and rootOf(target), rootOf(admin)
+	if not target or target == admin then
+		return false, "Pick another player"
+	end
+	if not from or not to then
+		return false, "Player has no character right now"
+	end
+	from.CFrame = to.CFrame * CFrame.new(0, 0, -5)
+	return true, "Brought " .. target.DisplayName
+end
+
+actions.GoTo = function(admin: Player, args)
+	local target = findPlayer(admin, args.Target)
+	local to, from = target and rootOf(target), rootOf(admin)
+	if not target or target == admin then
+		return false, "Pick another player"
+	end
+	if not from or not to then
+		return false, "Player has no character right now"
+	end
+	from.CFrame = to.CFrame * CFrame.new(0, 0, 5)
+	return true, "Teleported to " .. target.DisplayName
+end
+
+actions.Kick = function(admin: Player, args)
+	local target = findPlayer(admin, args.Target)
+	if not target or target == admin then
+		return false, "Pick another player"
+	end
+	if isAdmin(target) then
+		return false, "You can't kick another admin"
+	end
+	save(target)
+	target:Kick("You were kicked by an admin.")
+	return true, "Kicked " .. target.DisplayName
+end
+
+-- read-only look at a player's stats for the panel
+actions.Inspect = function(admin: Player, args)
+	local target, data = targetOf(admin, args)
+	if not target then
+		return false, "Player not found"
+	end
+	local pets = 0
+	for _ in data.Pets do
+		pets += 1
+	end
+	return true, {
+		Name = target.DisplayName,
+		User = target.Name,
+		Coins = data.Coins,
+		Candy = data.Candy,
+		Presents = data.Presents,
+		Turbos = data.Turbos,
+		Rebirths = data.Rebirths,
+		Pets = pets,
+		BestDistance = data.BestDistance,
+		BestEarn = data.BestEarn,
+		Admin = isAdmin(target),
+	}
 end
 
 AdminAction.OnServerInvoke = function(player, action, args)
@@ -873,23 +1237,6 @@ AdminAction.OnServerInvoke = function(player, action, args)
 	return handler(player, if type(args) == "table" then args else {})
 end
 
-actions.GiveCandy = function(admin: Player, args)
-	local target = findPlayer(admin, args.Target)
-	local amount = math.floor(tonumber(args.Amount) or 0)
-	if not target or not profiles[target] then
-		return false, "Player not found"
-	end
-	if amount <= 0 then
-		return false, "Enter an amount"
-	end
-	profiles[target].Candy += math.min(amount, 1e12)
-	push(target)
-	if target ~= admin then
-		notify(target, "Gift", { Text = "An admin gave you " .. Config.Commas(amount) .. " candy!" })
-	end
-	return true, "Gave " .. Config.Commas(amount) .. " candy to " .. target.DisplayName
-end
-
 ----------------------------------------------------------------------
 -- Eggs & pets remotes
 ----------------------------------------------------------------------
@@ -901,7 +1248,7 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 	if not data or not egg then
 		return false, "Not ready"
 	end
-	if egg.Halloween and not Config.Halloween.Enabled then
+	if (egg.Halloween and not Config.Halloween.Enabled) or (egg.Winter and not Config.Winter.Enabled) then
 		return false, "This egg is not available right now"
 	end
 	if lastHatch[player] and os.clock() - lastHatch[player] < 0.35 then
@@ -914,10 +1261,10 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 	if petCount(data) + count > Pets.MaxInventory + Config.PetStorageBonus(data.Owned) then
 		return false, "Pet inventory full! Delete some pets."
 	end
-	local field = if egg.Currency == "Candy" then "Candy" else "Coins"
+	local field = egg.Currency
 	local cost = Config.EggPrice(data.Owned, egg.Price) * count
-	if data[field] < cost then
-		return false, if field == "Candy" then "Not enough candy!" else "Not enough coins!"
+	if (data[field] or 0) < cost then
+		return false, "Not enough " .. Config.Currencies[field].Name .. "!"
 	end
 	lastHatch[player] = os.clock()
 	data[field] -= cost

@@ -308,10 +308,11 @@ end
 -- Egg stands (Update 2: pets). Client shows the egg panel when you walk up.
 ----------------------------------------------------------------------
 local EGGS = {
-	{ Id = "Frosty", Name = "Frosty Egg", Price = "2,500 coins", Color = rgb(170, 225, 255), X = -45 },
-	{ Id = "Glacier", Name = "Glacier Egg", Price = "40,000 coins", Color = rgb(90, 170, 255), X = -15 },
-	{ Id = "Aurora", Name = "Aurora Egg", Price = "500,000 coins", Color = rgb(190, 120, 255), X = 15 },
-	{ Id = "Spooky", Name = "Spooky Egg", Price = "250 candy", Color = rgb(255, 130, 30), X = 45 },
+	{ Id = "Frosty", Name = "Frosty Egg", Price = "2,500 coins", Color = rgb(170, 225, 255), X = -60 },
+	{ Id = "Glacier", Name = "Glacier Egg", Price = "40,000 coins", Color = rgb(90, 170, 255), X = -30 },
+	{ Id = "Aurora", Name = "Aurora Egg", Price = "500,000 coins", Color = rgb(190, 120, 255), X = 0 },
+	{ Id = "Spooky", Name = "Spooky Egg", Price = "250 candy", Color = rgb(255, 130, 30), X = 30 },
+	{ Id = "Winter", Name = "Winter Egg", Price = "300 presents", Color = rgb(235, 60, 70), X = 60 },
 }
 local eggFolder = folder(lobby, "Eggs")
 for _, e in EGGS do
@@ -445,8 +446,107 @@ local function pumpkin(pos, s)
 	light.Brightness = 1.5
 	light.Parent = m:FindFirstChild("Mouth")
 end
-for _, p in { { -20, 30, 1.2 }, { 20, 30, 1 }, { -60, 40, 1.4 }, { 60, 45, 1.2 }, { -30, 92, 0.9 }, { 30, 92, 0.9 }, { 0, 120, 1.6 }, { -84, 110, 1.3 }, { 84, 110, 1.3 } } do
+for _, p in { { -20, 30, 1.2 }, { 20, 30, 1 }, { -60, 40, 1.4 }, { 60, 45, 1.2 }, { -30, 92, 0.9 }, { 30, 92, 0.9 }, { -84, 110, 1.3 }, { 84, 110, 1.3 } } do
 	pumpkin(Vector3.new(p[1], P0.Y, p[2]), p[3])
+end
+
+----------------------------------------------------------------------
+-- Winter decorations (the server removes them when the event is off)
+----------------------------------------------------------------------
+local winter = folder(lobby, "Winter")
+local LIGHT_COLORS = { RED, rgb(60, 220, 90), rgb(70, 150, 255), YELLOW, rgb(255, 120, 220) }
+
+-- giant Christmas tree behind the eggs
+do
+	local m = model(winter, "ChristmasTree")
+	local s = 2.7
+	local base = Vector3.new(0, P0.Y, 124)
+	part(m, { Name = "Trunk", Size = Vector3.new(2, 5, 2) * s, CFrame = CFrame.new(base + Vector3.new(0, 2.5 * s, 0)), Color = WOOD, Material = Enum.Material.Wood })
+	local tiers = { { 9, 3.4 }, { 7.6, 3.2 }, { 6, 3 }, { 4.4, 2.8 }, { 2.8, 2.6 } }
+	local y = 4.5 * s
+	local n = 0
+	for i, t in tiers do
+		local w, h = t[1] * s, t[2] * s
+		local rot = CFrame.Angles(0, math.rad(i * 15), 0)
+		part(m, { Name = "Leaves", Size = Vector3.new(w, h, w), CFrame = CFrame.new(base + Vector3.new(0, y + h / 2, 0)) * rot, Color = if i % 2 == 0 then PINE_DARK else PINE, Material = Enum.Material.Grass })
+		part(m, { Name = "SnowCap", Size = Vector3.new(w * 0.8, 0.5 * s, w * 0.8), CFrame = CFrame.new(base + Vector3.new(0, y + h + 0.1, 0)) * rot, Color = SNOW_A, Material = Enum.Material.Snow })
+		-- glowing ornaments around each tier
+		local count = 10 - i
+		for k = 0, count - 1 do
+			local a = k / count * math.pi * 2 + i
+			local r = w * 0.52
+			n += 1
+			local ball = part(m, {
+				Name = "Ornament",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * (1.1 * s * 0.6),
+				CFrame = CFrame.new(base + Vector3.new(math.cos(a) * r, y + h * 0.35, math.sin(a) * r)),
+				Color = LIGHT_COLORS[n % #LIGHT_COLORS + 1],
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+			})
+			if k % 3 == 0 then
+				local light = Instance.new("PointLight")
+				light.Color = ball.Color
+				light.Range = 10
+				light.Brightness = 1.2
+				light.Parent = ball
+			end
+		end
+		y += h * 0.85
+	end
+	local star = part(m, { Name = "Star", Size = Vector3.new(2.4, 2.4, 0.8) * s, CFrame = CFrame.new(base + Vector3.new(0, y + 1.6 * s, 0)) * CFrame.Angles(0, 0, math.rad(45)), Color = YELLOW, Material = Enum.Material.Neon })
+	local starLight = Instance.new("PointLight")
+	starLight.Color = rgb(255, 220, 120)
+	starLight.Range = 30
+	starLight.Brightness = 2
+	starLight.Parent = star
+end
+
+-- piles of presents
+local function present(pos: Vector3, size: number, color, ribbon, turn: number)
+	local m = model(winter, "Present")
+	local cf = CFrame.new(pos + Vector3.new(0, size / 2, 0)) * CFrame.Angles(0, turn, 0)
+	part(m, { Name = "Box", Size = Vector3.one * size, CFrame = cf, Color = color })
+	part(m, { Name = "Ribbon", Size = Vector3.new(size + 0.1, size + 0.1, size * 0.18), CFrame = cf, Color = ribbon })
+	part(m, { Name = "Ribbon", Size = Vector3.new(size * 0.18, size + 0.1, size + 0.1), CFrame = cf, Color = ribbon })
+	part(m, { Name = "Bow", Shape = Enum.PartType.Ball, Size = Vector3.one * size * 0.3, CFrame = cf * CFrame.new(0, size / 2 + size * 0.1, 0), Color = ribbon, Material = Enum.Material.Neon })
+end
+for _, g in { { -10, 116, 4, 1 }, { 9, 117, 3.4, 2 }, { -14, 121, 2.6, 3 }, { 13, 121, 3, 4 }, { -6, 113, 2.4, 5 }, { 6, 112, 2.2, 1 }, { 0, 113, 2.8, 3 } } do
+	local wrap = ({ { RED, YELLOW }, { rgb(40, 170, 80), RED }, { BLUE, WHITE }, { rgb(190, 90, 240), YELLOW }, { WHITE, RED } })[g[4]]
+	present(Vector3.new(g[1], P0.Y, g[2]), g[3], wrap[1], wrap[2], math.rad(g[1] * 7))
+end
+
+-- string lights hanging under the big sign over the slope
+for i = 0, 40 do
+	local x = -WIDTH / 2 - 4 + i * ((WIDTH + 8) / 40)
+	local sag = math.sin(i / 40 * math.pi) * 3
+	part(winter, {
+		Name = "Bulb",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.one * 1.1,
+		CFrame = CFrame.new(x, P0.Y + 29.5 - sag, 3),
+		Color = LIGHT_COLORS[i % #LIGHT_COLORS + 1],
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		CastShadow = false,
+	})
+end
+
+-- warm lamp posts along the plaza
+for _, l in { { -40, 28 }, { 40, 28 }, { -40, 84 }, { 40, 84 } } do
+	local m = model(winter, "LampPost")
+	part(m, { Name = "Pole", Shape = Enum.PartType.Cylinder, Size = Vector3.new(12, 0.8, 0.8), CFrame = CFrame.new(l[1], P0.Y + 6, l[2]) * CFrame.Angles(0, 0, math.rad(90)), Color = rgb(40, 40, 50) })
+	local lamp = part(m, { Name = "Lamp", Shape = Enum.PartType.Ball, Size = Vector3.one * 2.2, CFrame = CFrame.new(l[1], P0.Y + 12.6, l[2]), Color = rgb(255, 220, 140), Material = Enum.Material.Neon })
+	part(m, { Name = "Cap", Size = Vector3.new(2.6, 0.5, 2.6), CFrame = CFrame.new(l[1], P0.Y + 13.9, l[2]), Color = SNOW_A, Material = Enum.Material.Snow })
+	for k = 0, 3 do
+		part(m, { Name = "Cane", Size = Vector3.new(1, 1.4, 1), CFrame = CFrame.new(l[1], P0.Y + 0.7 + k * 1.4, l[2]), Color = if k % 2 == 0 then RED else WHITE })
+	end
+	local light = Instance.new("PointLight")
+	light.Color = rgb(255, 200, 130)
+	light.Range = 24
+	light.Brightness = 1.6
+	light.Parent = lamp
 end
 
 -- trees around the plaza
@@ -456,7 +556,8 @@ for _ = 1, 48 do
 	-- keep clear of the pad, spawn, egg row (z ~ 100) and the leaderboards (x ~ +-72)
 	local nearEggs = z > 86 and math.abs(x) < 72
 	local nearBoards = math.abs(x) > 56 and z > 48 and z < 92
-	if (math.abs(x) > 24 or z > 80) and not nearEggs and not nearBoards then
+	local nearLamps = math.abs(math.abs(x) - 40) < 7 and (math.abs(z - 28) < 7 or math.abs(z - 84) < 7)
+	if (math.abs(x) > 24 or z > 80) and not nearEggs and not nearBoards and not nearLamps then
 		if not (math.abs(x) < 10 and math.abs(z - 60) < 10) then
 			pineTree(decor, CFrame.new(x, P0.Y, z) * CFrame.Angles(0, rand(0, 6), 0), rand(1, 1.6))
 		end
@@ -561,9 +662,13 @@ end
 -- live server state (storm end times) replicated to every client as attributes
 local gameState = Instance.new("Configuration")
 gameState.Name = "GameState"
-for _, id in { "Coins2", "Coins3", "Mutation", "Growth", "Speed", "Lucky" } do
+for _, id in { "Coins2", "Coins3", "Mutation", "Growth", "Speed", "Lucky", "Meteor", "Galaxy" } do
 	gameState:SetAttribute("Event_" .. id, 0)
 end
+gameState:SetAttribute("CrazyAuto", true)
+gameState:SetAttribute("CrazyIncoming", "")
+gameState:SetAttribute("CrazyIncomingAt", 0)
+gameState:SetAttribute("NextCrazy", 0)
 gameState.Parent = replicated
 
 local server = Instance.new("Script")
@@ -582,7 +687,7 @@ local client = Instance.new("LocalScript")
 client.Name = "SnowballClient"
 client.Source = read("src/client/Main.client.luau")
 client.Parent = sps
-for _, name in { "UIKit", "Effects", "Hud", "Panels", "UpgradeTree", "CourseBuilder", "Runner", "PetsUI", "DailyUI" } do
+for _, name in { "UIKit", "Effects", "Hud", "Panels", "UpgradeTree", "CourseBuilder", "Runner", "PetsUI", "DailyUI", "CrazyFX" } do
 	module(client, name, "src/client/" .. name .. ".luau")
 end
 

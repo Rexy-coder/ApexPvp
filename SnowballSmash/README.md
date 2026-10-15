@@ -65,6 +65,27 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
 * **New Robux items:** Triple Hatch, Auto Hatch, Lucky Eggs and +2 Pet Slots passes, plus
   Legendary Pet, Bag of Candy and Cauldron of Candy products. Admins can also give candy.
 
+## Update 3: "Winter Wonderland" 🎄 + crazy events
+
+* **🎁 Winter:** giant presents and gingerbread houses on the mountain drop **🎁 Presents**,
+  which buy the **Winter Egg** (Reindeer, Polar Bear, Gingerbread, Snow Elf, Santa Paws and the
+  Secret **Frost Titan**) and the **Candy Cane Ball** (+100% coins). The lobby gets a giant
+  glowing Christmas tree, presents, string lights, lamp posts and a cosy evening look.
+  Switch it off after winter with `Config.Winter.Enabled = false`. Halloween is now off
+  (`Config.Halloween.Enabled = false`); candy, Spooky pets and the Pumpkin Ball are kept.
+* **🤯 Crazy events** (like admin abuse in Steal a Brainrot): every 30-50 minutes
+  (`Config.CrazyEvents`) one starts by itself after a huge 10-second countdown on everyone's
+  screen. Admins can start them any time.
+  * **☄️ Meteor Shower:** red sky, meteors rain down everywhere. The ones that hit the lobby
+    leave glowing shards: touch one for coins (a quarter of your best run, at least 300).
+    Obstacles turn **🔥 Molten (x10)** and all coins are x1.5.
+  * **🌌 Galaxy Event:** night sky full of stars and planets, low gravity in the lobby
+    (super jumps!), snowballs fly 1.8x higher off ramps, **x2 hatch luck** and obstacles turn
+    **🌌 Galaxy (x15)**.
+  * Music for each one: `Sounds.CrazyMusic`.
+* **🍬 Treat Collector** (the old Candy Collector upgrade) now boosts presents too.
+* **Codes:** `WINTER` (150 presents + 2 Turbos, until 15 Jan 2027) and `METEOR` (5,000 coins).
+
 ## Robux shop: put your IDs in `ReplicatedStorage.Shared.Monetization`
 
 Create the passes and products on the Creator Dashboard (*your game → Monetization →
@@ -106,6 +127,7 @@ To test perks in Studio, set `Monetization.StudioOwnsAllPasses = true`.
 
 * `Sounds.Music`: background music playlist, e.g. `{ "rbxassetid://123", "rbxassetid://456" }`
 * `Sounds.EventMusic`: plays while a storm is running (optional)
+* `Sounds.CrazyMusic`: music for the Meteor Shower / Galaxy Event (optional)
 * `Sounds.UI`: Click, Hover, Open, Close, Purchase, Error, Notify, Toggle
 * `Sounds.Game`: Launch, Smash, Land, Boost, Coin, Critical, MaxPower, NewBest, Mutation
 * `MusicVolume`, `SfxVolume`, `UIVolume`
@@ -117,16 +139,22 @@ until you add an ID.
 
 Put your Roblox user ID in `AdminConfig.Admins`. The game's owner is always an admin, and in
 Studio everyone is admin so you can test it. Admins get a 🛡️ **Admin** tile in the menu, an
-`[ADMIN]` chat tag and a name tag. From the panel they can:
+`[ADMIN]` chat tag and a name tag. The panel has three tabs, and a switch at the top right
+sends announcements and events to **🌍 all servers** instead of just this one:
 
-* **📢 Announce:** a big banner and a chat message for everyone (text goes through Roblox's filter).
-* **🌪️ Start storms** for 1/5/15/30 minutes:
-  * x2 Coins Storm and x3 Coins Storm.
-  * **Mutation Storm:** obstacles turn ✨Golden (x3) or 💎Diamond (x8).
-  * Mega Growth, Blizzard Speed and Lucky Storm.
-  * Storms stack, show a countdown on everyone's screen and bring heavy snowfall. You can stop all of them.
-* **🎁 Give coins or turbos** to yourself (leave the name empty) or any player in the server.
-* **👑 Give or remove any game pass** for yourself or others. Given passes are saved.
+* **🌍 Server:** announcements (filtered by Roblox), quick-message buttons, and live server
+  info (players, uptime, running events, next crazy event).
+* **🤯 Events:**
+  * Start the **☄️ Meteor Shower** or **🌌 Galaxy Event**, turn random crazy events on or
+    off, or trigger a random one right now.
+  * Storms for 1/5/15/30/60 minutes: x2 / x3 Coins, **Mutation Storm** (✨Golden x3 /
+    💎Diamond x8), Mega Growth, Blizzard Speed and Lucky Storm. Stop everything with one button.
+* **👥 Players:** pick anyone from the list (with their avatar) to see their coins, candy,
+  presents, turbos, pets and rebirths, then:
+  * give or take coins, turbos, candy or presents;
+  * give any pet (tap it);
+  * give or remove any game pass (saved);
+  * **Bring**, **Go to** or **Kick** (kick asks twice; admins can't be kicked).
 
 Every admin action is checked on the server, so non-admins can't use the remote.
 

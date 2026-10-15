@@ -71,10 +71,11 @@ music.Volume = Sounds.MusicVolume
 music.Parent = soundFolder
 local track = 0
 local eventMusicOn = false
+local eventMusicId = ""
 
 local function playNext()
-	if eventMusicOn and Sounds.EventMusic ~= "" then
-		music.SoundId = Sounds.EventMusic
+	if eventMusicOn and eventMusicId ~= "" then
+		music.SoundId = eventMusicId
 		music.Looped = true
 	elseif #playlist > 0 then
 		track = track % #playlist + 1
@@ -104,13 +105,21 @@ function Effects.applyMusic()
 	end
 end
 
--- switch to/from Sounds.EventMusic while a storm is running
-function Effects.setEventMusic(on: boolean)
-	if on == eventMusicOn then
+-- switch to/from event music while a storm is running
+-- (crazyId: a running crazy event, uses Sounds.CrazyMusic[crazyId] when set)
+function Effects.setEventMusic(on: boolean, crazyId: string?)
+	local id = ""
+	if on then
+		local crazy = crazyId and Sounds.CrazyMusic and Sounds.CrazyMusic[crazyId]
+		id = if crazy and crazy ~= "" then crazy else Sounds.EventMusic
+	end
+	if on == eventMusicOn and id == eventMusicId then
 		return
 	end
+	local changed = id ~= eventMusicId or (id ~= "" and on ~= eventMusicOn)
 	eventMusicOn = on
-	if Sounds.EventMusic ~= "" and Effects.Settings.Music then
+	eventMusicId = id
+	if changed and Effects.Settings.Music then
 		music:Stop()
 		playNext()
 	end

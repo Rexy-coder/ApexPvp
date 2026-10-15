@@ -42,14 +42,15 @@ courseFolder.Name = "LocalCourse"
 courseFolder.Parent = Workspace
 
 local chunks = {} -- [index] = CourseBuilder.Built
-local mutationOn = false
+local mutationIds: { string } = {} -- mutations the built course rolled with
+local mutationKey = ""
 local courseDirty = true
 
 local function buildChunk(i: number)
 	if chunks[i] or i < 0 then
 		return
 	end
-	chunks[i] = CourseBuilder.Build(i, courseFolder, mutationOn)
+	chunks[i] = CourseBuilder.Build(i, courseFolder, mutationIds)
 end
 
 local function dropChunk(i: number)
@@ -81,19 +82,20 @@ local function streamAround(s: number, budget: number)
 	end
 end
 
-function Runner.resetCourse(mutation: boolean?)
+function Runner.resetCourse(mutations: { string }?)
 	for i in chunks do
 		dropChunk(i)
 	end
-	mutationOn = mutation == true
+	mutationIds = mutations or {}
+	mutationKey = table.concat(mutationIds, ",")
 	streamAround(0, 99)
 	courseDirty = false
 end
 
--- e.g. a Mutation Storm started while standing in the lobby
-function Runner.setMutation(on: boolean)
-	if on ~= mutationOn and Runner.State == "Idle" then
-		Runner.resetCourse(on)
+-- e.g. a Mutation Storm / Meteor Shower started while standing in the lobby
+function Runner.setMutations(ids: { string })
+	if table.concat(ids, ",") ~= mutationKey and Runner.State == "Idle" then
+		Runner.resetCourse(ids)
 	end
 end
 
@@ -227,6 +229,7 @@ local function newRun(stats)
 		Smashed = 0,
 		Coins = 0,
 		Candy = 0,
+		Presents = 0,
 		Stats = stats,
 		Time = 0,
 		Stopped = 0,
@@ -353,6 +356,12 @@ local function smash(o, st, center: Vector3)
 			Effects.worldText(surface((o.S0 + o.S1) / 2, (o.X0 + o.X1) / 2) + Vector3.yAxis * (math.min(o.Top, 25) + 6), "+" .. o.Candy .. " 🍬", Color3.fromRGB(255, 150, 40), 55)
 		end)
 	end
+	if o.Presents > 0 then
+		st.Presents += o.Presents
+		task.delay(0.15, function()
+			Effects.worldText(surface((o.S0 + o.S1) / 2, (o.X0 + o.X1) / 2) + Vector3.yAxis * (math.min(o.Top, 25) + 6), "+" .. o.Presents .. " 🎁", Color3.fromRGB(255, 95, 110), 55)
+		end)
+	end
 	st.R = math.min(stats.MaxRadius, st.R + 0.12)
 
 	-- feedback
@@ -360,7 +369,9 @@ local function smash(o, st, center: Vector3)
 	local midX = (o.X0 + o.X1) / 2
 	local base = surface(midS, midX)
 	local popPos = base + Vector3.yAxis * (math.min(o.Top, 25) + 2)
-	local color = if o.Mult >= 8 then Color3.fromRGB(120, 235, 255)
+	local color = if o.Mult >= 15 then Color3.fromRGB(190, 130, 255)
+		elseif o.Mult >= 10 then Color3.fromRGB(255, 120, 40)
+		elseif o.Mult >= 8 then Color3.fromRGB(120, 235, 255)
 		elseif o.Mult >= 3 then Color3.fromRGB(255, 200, 40)
 		elseif crit then Color3.fromRGB(255, 170, 40)
 		else Color3.fromRGB(255, 225, 70)
@@ -385,8 +396,8 @@ end
 ----------------------------------------------------------------------
 -- Put a fresh snowball on the start pad and point the camera down the hill.
 function Runner.prepare(stats, skinId: string)
-	if courseDirty or (stats.Mutation == true) ~= mutationOn then
-		Runner.resetCourse(stats.Mutation)
+	if courseDirty or (stats.MutationKey or "") ~= mutationKey then
+		Runner.resetCourse(stats.Mutations)
 	end
 	if ball then
 		ball.Model:Destroy()
@@ -463,7 +474,7 @@ function Runner.stop()
 	end
 	Hud.setSpeed(0)
 	-- show a fresh course in the lobby again
-	Runner.resetCourse(mutationOn)
+	Runner.resetCourse(mutationIds)
 end
 
 local function finish(st)
@@ -474,6 +485,7 @@ local function finish(st)
 		BestCombo = st.BestCombo,
 		SmashCoins = st.Coins,
 		Candy = st.Candy,
+		Presents = st.Presents,
 	})
 end
 
@@ -505,7 +517,7 @@ function Runner.update(dt: number)
 		-- forward motion
 		local airborne = st.H > 0 or st.VH > 0
 		if airborne then
-			st.VH -= P.Gravity * dt
+			st.VH -= (stats.Gravity or P.Gravity) * dt
 			st.H += st.VH * dt
 			if st.H <= 0 then
 				st.H = 0

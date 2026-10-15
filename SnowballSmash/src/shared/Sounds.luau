@@ -25,6 +25,12 @@ Sounds.Music = {
 -- Plays instead of the playlist while a server storm/event is active ("" = keep playlist)
 Sounds.EventMusic = ""
 
+-- Music for the CRAZY events (overrides EventMusic while they run, "" = use EventMusic)
+Sounds.CrazyMusic = {
+	Meteor = "",
+	Galaxy = "",
+}
+
 ----------------------------------------------------------------------
 -- GUI SOUNDS
 ----------------------------------------------------------------------
@@ -52,6 +58,9 @@ Sounds.Game = {
 	MaxPower = "rbxasset://sounds/electronicpingshort.wav",
 	NewBest = "rbxasset://sounds/electronicpingshort.wav",
 	Mutation = "rbxasset://sounds/electronicpingshort.wav",
+	Countdown = "rbxasset://sounds/electronicpingshort.wav", -- crazy event countdown tick
+	MeteorImpact = "rbxasset://sounds/impact_water.mp3",
+	Shard = "rbxasset://sounds/electronicpingshort.wav",
 }
 
 return Sounds
