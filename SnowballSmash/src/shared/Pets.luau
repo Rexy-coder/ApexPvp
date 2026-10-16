@@ -127,26 +127,69 @@ for _, egg in Pets.Eggs do
 	end
 end
 
--- Strength used by "Equip Best"
-function Pets.Score(petId: string): number
-	local p = Pets.ById[petId]
-	if not p then
-		return 0
-	end
-	return p.Coins + p.Growth * 2 + p.Launch * 2
+-- Shiny variants: 0 = normal, 1 = Golden, 2 = Rainbow.
+-- Fuse 3 identical pets at the Fusion Machine to get the next variant.
+Pets.Variants = {
+	[0] = { Name = "", Mult = 1, Color = Color3.fromRGB(255, 255, 255) },
+	[1] = { Name = "Golden", Mult = 2, Color = Color3.fromRGB(255, 205, 50) },
+	[2] = { Name = "Rainbow", Mult = 4, Color = Color3.fromRGB(255, 110, 220) },
+}
+Pets.MaxVariant = 2
+Pets.FuseCount = 3
+Pets.GoldenHatchChance = 0.02 -- chance a hatched pet is already Golden
+Pets.RainbowHatchChance = 0.002 -- ...or even Rainbow
+
+function Pets.VariantName(v: number?): string
+	local info = Pets.Variants[v or 0]
+	return if info then info.Name else ""
 end
 
-function Pets.BonusText(petId: string): string
+-- "Golden Penguin"
+function Pets.FullName(petId: string, v: number?): string
 	local p = Pets.ById[petId]
 	if not p then
 		return ""
 	end
-	local parts = { "+" .. p.Coins .. "% coins" }
+	local prefix = Pets.VariantName(v)
+	return if prefix == "" then p.Name else prefix .. " " .. p.Name
+end
+
+-- Roll a variant for a freshly hatched pet. `rng` is a Random object (server only).
+function Pets.RollVariant(rng): number
+	local roll = rng:NextNumber()
+	if roll < Pets.RainbowHatchChance then
+		return 2
+	elseif roll < Pets.RainbowHatchChance + Pets.GoldenHatchChance then
+		return 1
+	end
+	return 0
+end
+
+-- Strength used by "Equip Best"
+function Pets.Score(petId: string, variant: number?): number
+	local p = Pets.ById[petId]
+	if not p then
+		return 0
+	end
+	return (p.Coins + p.Growth * 2 + p.Launch * 2) * Pets.Variants[variant or 0].Mult
+end
+
+local function pct(n: number): string
+	return if math.floor(n) == n then tostring(n) else string.format("%.1f", n)
+end
+
+function Pets.BonusText(petId: string, variant: number?): string
+	local p = Pets.ById[petId]
+	if not p then
+		return ""
+	end
+	local m = Pets.Variants[variant or 0].Mult
+	local parts = { "+" .. pct(p.Coins * m) .. "% coins" }
 	if p.Growth > 0 then
-		table.insert(parts, "+" .. p.Growth .. "% growth")
+		table.insert(parts, "+" .. pct(p.Growth * m) .. "% growth")
 	end
 	if p.Launch > 0 then
-		table.insert(parts, "+" .. p.Launch .. "% speed")
+		table.insert(parts, "+" .. pct(p.Launch * m) .. "% speed")
 	end
 	return table.concat(parts, "  ")
 end

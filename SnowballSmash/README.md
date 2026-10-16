@@ -100,6 +100,21 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
   models. There are now 35 pets.
 * **Art:** `docs/art/icon_winter_512.png` (game icon) and `docs/art/update_winter_wonderland.png`.
 
+## Update 5: "Pet Paradise" 🐾
+
+* **✨ Golden and Rainbow pets:** any pet can be a shiny one. **Golden = x2** and **Rainbow = x4**
+  the pet's bonuses. Hatching has a 2% chance for Golden and 0.2% for Rainbow
+  (`Pets.GoldenHatchChance` / `RainbowHatchChance`). Golden pets glow gold, Rainbow pets
+  cycle through the colours, and shiny pets sparkle and have a coloured border in the menus.
+* **🔧 Fusion:** fuse **3 identical unlocked pets** into 1 of the next type (Normal → Golden →
+  Rainbow). Select a pet in the **Pets** menu and press **Fuse**, or press **Fuse All ✨** to fuse
+  everything possible at once. Locked pets are never used. A new **Fusion Machine** stands in the
+  lobby: walk up and press **F** to open the Pets menu.
+* **🎉 Pet Party** (a third crazy event, in the random pool and the admin panel): confetti and a
+  pink sky, **eggs cost half** and equipped pets give **+50% more** for 5 minutes.
+* **Admin:** the Players tab can give any pet as Normal, Golden or Rainbow.
+* **Art:** `docs/art/icon_pet_paradise_512.png` and `docs/art/update_pet_paradise.png`.
+
 ## Robux shop: put your IDs in `ReplicatedStorage.Shared.Monetization`
 
 Create the passes and products on the Creator Dashboard (*your game → Monetization →

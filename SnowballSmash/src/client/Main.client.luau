@@ -302,7 +302,7 @@ Notify.OnClientEvent:Connect(function(kind: string, payload)
 		local first = Pets.ById[payload.Pets[1]]
 		task.spawn(function()
 			PetsUI.Busy = true
-			PetsUI.playHatch(if first then first.Egg else "Aurora", payload.Pets, {})
+			PetsUI.playHatch(if first then first.Egg else "Aurora", payload.Pets, {}, false, payload.Variants)
 			PetsUI.Busy = false
 		end)
 	elseif kind == "CrazyIncoming" then
@@ -559,13 +559,13 @@ Panels.Callbacks.Admin = function(action: string, args)
 	return ok, message
 end
 
-if prompt then
-	ProximityPromptService.PromptTriggered:Connect(function(triggered)
-		if triggered == prompt then
-			startCharge()
-		end
-	end)
-end
+ProximityPromptService.PromptTriggered:Connect(function(triggered)
+	if prompt and triggered == prompt then
+		startCharge()
+	elseif triggered.Name == "FusePrompt" and mode == "Idle" then
+		Panels.open("Pets") -- the Fusion Machine
+	end
+end)
 
 ----------------------------------------------------------------------
 -- Pets, eggs, daily rewards, codes
@@ -598,9 +598,9 @@ PetsUI.Callbacks.Hatch = function(eggId: string, count: number, fast: boolean?):
 	end
 	PetsUI.Busy = true
 	local before = snapshotIndex()
-	local ok, result = HatchEgg:InvokeServer(eggId, count)
+	local ok, result, variants = HatchEgg:InvokeServer(eggId, count)
 	if ok and type(result) == "table" then
-		PetsUI.playHatch(eggId, result, newPetsAmong(result, before), fast)
+		PetsUI.playHatch(eggId, result, newPetsAmong(result, before), fast, variants)
 	elseif result then
 		errorToast(result)
 	end
@@ -608,13 +608,32 @@ PetsUI.Callbacks.Hatch = function(eggId: string, count: number, fast: boolean?):
 	return ok == true
 end
 
-PetsUI.Callbacks.Action = function(action: string, uid: string?)
+PetsUI.Callbacks.Action = function(action: string, uid: string?): (boolean, any)
+	if PetsUI.Busy then
+		return false, nil
+	end
 	local ok, message = PetAction:InvokeServer(action, uid)
 	if ok then
 		Effects.play("Click", 1.3)
+		-- Fusion Machine: show the new shiny pets (best first, at most 3)
+		if type(message) == "table" and type(message.Fused) == "table" and #message.Fused > 0 then
+			local ids, variants = {}, {}
+			for i = 1, math.min(3, #message.Fused) do
+				table.insert(ids, message.Fused[i].Pet)
+				table.insert(variants, message.Fused[i].Variant)
+			end
+			local egg = Pets.ById[ids[1]].Egg
+			Hud.toast("✨ Fused " .. #message.Fused .. " shiny pet" .. (if #message.Fused > 1 then "s" else "") .. "!", Color3.fromRGB(255, 190, 40))
+			task.spawn(function()
+				PetsUI.Busy = true
+				PetsUI.playHatch(egg, ids, {}, true, variants)
+				PetsUI.Busy = false
+			end)
+		end
 	elseif message then
 		errorToast(message)
 	end
+	return ok == true, message
 end
 
 PetsUI.Callbacks.BuyPass = function(key: string)

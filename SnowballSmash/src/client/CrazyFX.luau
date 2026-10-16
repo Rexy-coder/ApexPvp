@@ -46,6 +46,12 @@ local LOOKS = {
 		CC = { TintColor = rgb(255, 205, 185), Saturation = 0.35 },
 		StarCount = nil,
 	},
+	PetParty = {
+		Lighting = { ClockTime = 15.2, Brightness = 3, Ambient = rgb(170, 130, 190), OutdoorAmbient = rgb(210, 170, 230) },
+		Atmosphere = { Color = rgb(255, 170, 225), Decay = rgb(200, 110, 200), Density = 0.3, Haze = 1 },
+		CC = { TintColor = rgb(255, 225, 245), Saturation = 0.5 },
+		StarCount = nil,
+	},
 	Galaxy = {
 		Lighting = { ClockTime = 0, Brightness = 2.4, Ambient = rgb(110, 80, 170), OutdoorAmbient = rgb(140, 110, 210) },
 		Atmosphere = { Color = rgb(130, 90, 255), Decay = rgb(40, 20, 100), Density = 0.22, Haze = 1.4 },
@@ -159,6 +165,54 @@ local function galaxyOff()
 end
 
 ----------------------------------------------------------------------
+-- Pet Party confetti
+----------------------------------------------------------------------
+local confettiPart: Part? = nil
+
+local function partyOn()
+	if confettiPart then
+		return
+	end
+	local sp = Instance.new("Part")
+	sp.Name = "PartyConfetti"
+	sp.Anchored = true
+	sp.CanCollide = false
+	sp.CanQuery = false
+	sp.CanTouch = false
+	sp.Transparency = 1
+	sp.Size = Vector3.new(150, 2, 150)
+	sp.Parent = Workspace
+	local e = Instance.new("ParticleEmitter")
+	e.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, rgb(255, 90, 140)),
+		ColorSequenceKeypoint.new(0.2, rgb(255, 225, 80)),
+		ColorSequenceKeypoint.new(0.4, rgb(100, 255, 160)),
+		ColorSequenceKeypoint.new(0.6, rgb(90, 190, 255)),
+		ColorSequenceKeypoint.new(0.8, rgb(210, 120, 255)),
+		ColorSequenceKeypoint.new(1, rgb(255, 150, 60)),
+	})
+	e.LightEmission = 0.3
+	e.Size = NumberSequence.new(0.55)
+	e.Rate = 150
+	e.Lifetime = NumberRange.new(3, 5)
+	e.Speed = NumberRange.new(8, 16)
+	e.EmissionDirection = Enum.NormalId.Bottom
+	e.SpreadAngle = Vector2.new(20, 20)
+	e.Rotation = NumberRange.new(0, 360)
+	e.RotSpeed = NumberRange.new(-240, 240)
+	e.Acceleration = Vector3.new(0, -4, 0)
+	e.Parent = sp
+	confettiPart = sp
+end
+
+local function partyOff()
+	if confettiPart then
+		confettiPart:Destroy()
+		confettiPart = nil
+	end
+end
+
+----------------------------------------------------------------------
 -- Meteors
 ----------------------------------------------------------------------
 local function meteorModel(size: number): BasePart
@@ -238,6 +292,9 @@ RunService.Heartbeat:Connect(function(dt)
 	if starPart then
 		starPart.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, 30, 0))
 	end
+	if confettiPart then
+		confettiPart.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, 45, 0))
+	end
 	if active == "Meteor" then
 		ambientT += dt
 		if ambientT > 0.9 then
@@ -273,6 +330,11 @@ function CrazyFX.setActive(id: string?)
 		galaxyOn()
 	else
 		galaxyOff()
+	end
+	if id == "PetParty" then
+		partyOn()
+	else
+		partyOff()
 	end
 	local look = id and LOOKS[id]
 	if look then

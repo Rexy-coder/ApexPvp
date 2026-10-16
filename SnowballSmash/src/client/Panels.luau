@@ -655,16 +655,25 @@ local serverInfo = infoText(infoSection, UDim2.fromOffset(16, 44), UDim2.new(1, 
 ----------------------------------------------------------------------
 local eventsPage = adminPage("Events", true)
 
-local crazySection = section(eventsPage, "🤯 Crazy events (10 second countdown for everyone)", 236)
+local crazyCount = 0
+for _, e in Config.Events do
+	if e.Crazy then
+		crazyCount += 1
+	end
+end
+local crazyRows = math.ceil(crazyCount / 2)
+local crazyBottom = 44 + crazyRows * 84
+local crazySection = section(eventsPage, "🤯 Crazy events (10 second countdown for everyone)", crazyBottom + 104)
 local crazyButtons: { [string]: UIKit.Button } = {}
 local crazyIndex = 0
 for _, e in Config.Events do
 	if e.Crazy then
-		local col = crazyIndex
+		local col = crazyIndex % 2
+		local rowI = crazyIndex // 2
 		crazyIndex += 1
 		local b = UIKit.button({
 			Size = UDim2.fromOffset(300, 74),
-			Position = UDim2.fromOffset(14 + col * 314, 44),
+			Position = UDim2.fromOffset(14 + col * 314, 44 + rowI * 84),
 			Color = e.Color,
 			DarkColor = darker(e.Color),
 			Text = e.Name,
@@ -679,15 +688,15 @@ for _, e in Config.Events do
 		crazyButtons[e.Id] = b
 	end
 end
-local autoButton = smallButton(crazySection, "", UDim2.fromOffset(300, 48), UDim2.fromOffset(14, 132), C.Green, C.GreenDark, function() end)
+local autoButton = smallButton(crazySection, "", UDim2.fromOffset(300, 48), UDim2.fromOffset(14, crazyBottom + 4), C.Green, C.GreenDark, function() end)
 autoButton.Clicked = function()
 	local state = gameState()
 	admin("CrazyAuto", { On = not (state and state:GetAttribute("CrazyAuto") == true) })
 end
-smallButton(crazySection, "🎲 Random one NOW", UDim2.fromOffset(300, 48), UDim2.fromOffset(328, 132), C.Purple, C.PurpleDark, function()
+smallButton(crazySection, "🎲 Random one NOW", UDim2.fromOffset(300, 48), UDim2.fromOffset(328, crazyBottom + 4), C.Purple, C.PurpleDark, function()
 	admin("CrazyNext", { Minutes = 0 })
 end)
-local nextLabel = UIKit.label({ Text = "", TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.new(1, -30, 0, 26), Position = UDim2.fromOffset(16, 192), Stroke = 2, TextColor3 = Color3.fromRGB(255, 225, 120), Parent = crazySection })
+local nextLabel = UIKit.label({ Text = "", TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.new(1, -30, 0, 26), Position = UDim2.fromOffset(16, crazyBottom + 64), Stroke = 2, TextColor3 = Color3.fromRGB(255, 225, 120), Parent = crazySection })
 
 local stormSection = section(eventsPage, "🌪️ Storms (whole server)", 300)
 local chosenMinutes = 5
@@ -870,8 +879,26 @@ kickButton = smallButton(modSection, "👢 Kick", UDim2.fromOffset(150, 48), UDi
 end)
 
 -- pets: tap a pet to give it
-local petSection = section(actionScroll, "🐾 Give a pet (tap one)", 60 + math.ceil(#Pets.All / 6) * 92)
-local petGrid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -28, 1, -52), Position = UDim2.fromOffset(14, 44), Parent = petSection })
+local petSection = section(actionScroll, "🐾 Give a pet (pick a type, then tap a pet)", 112 + math.ceil(#Pets.All / 6) * 92)
+local giveVariant = 0
+local variantButtons: { [number]: UIKit.Button } = {}
+local function refreshVariants()
+	for v, b in variantButtons do
+		if v == giveVariant then
+			b.SetColors(C.Yellow, C.YellowDark)
+		else
+			b.SetColors(C.WoodDark, Color3.fromRGB(40, 24, 14))
+		end
+	end
+end
+for v = 0, Pets.MaxVariant do
+	variantButtons[v] = smallButton(petSection, if v == 0 then "Normal" else "★ " .. Pets.VariantName(v), UDim2.fromOffset(130, 38), UDim2.fromOffset(14 + v * 140, 44), C.WoodDark, C.Outline, function()
+		giveVariant = v
+		refreshVariants()
+	end)
+end
+refreshVariants()
+local petGrid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -28, 1, -104), Position = UDim2.fromOffset(14, 96), Parent = petSection })
 new("UIGridLayout", { CellSize = UDim2.fromOffset(92, 84), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = petGrid })
 for i, pet in Pets.All do
 	local rarity = Pets.Rarities[pet.Rarity]
@@ -887,7 +914,7 @@ for i, pet in Pets.All do
 		if selectedPlayer() == Players.LocalPlayer then
 			Panels.closeAll() -- so you can watch your own hatch animation
 		end
-		admin("GivePet", { Target = targetName(), Pet = pet.Id })
+		admin("GivePet", { Target = targetName(), Pet = pet.Id, Variant = giveVariant })
 	end)
 end
 

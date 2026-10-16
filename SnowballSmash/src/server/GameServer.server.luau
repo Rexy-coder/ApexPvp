@@ -104,7 +104,7 @@ local function defaultData()
 		ReceiptOrder = {},
 		-- Update 2
 		Candy = 0,
-		Pets = {}, -- uid -> { P = petId, L = locked }
+		Pets = {}, -- uid -> { P = petId, L = locked, V = 0 normal | 1 golden | 2 rainbow }
 		Equipped = {}, -- list of uids
 		Index = {}, -- petId -> true once ever hatched
 		NextPetId = 1,
@@ -230,12 +230,13 @@ local function extrasFor(player: Player)
 			local owned = data.Pets[uid]
 			local pet = owned and Pets.ById[owned.P]
 			if pet then
-				coins += pet.Coins
-				growth += pet.Growth
-				launch += pet.Launch
+				local vm = Pets.Variants[owned.V or 0].Mult
+				coins += pet.Coins * vm
+				growth += pet.Growth * vm
+				launch += pet.Launch * vm
 			end
 		end
-		local petPower = Config.PetPowerMult(data.Owned)
+		local petPower = Config.PetPowerMult(data.Owned) * Config.EventProduct("PetPowerMult", eventActive)
 		coins = coins * petPower + #Pets.CompletedEggs(data.Index) * Pets.IndexBonus
 		extras.CoinMult *= 1 + coins / 100
 		extras.GrowthMult *= 1 + growth * petPower / 100
@@ -563,7 +564,7 @@ local function updatePetAttribute(player: Player)
 	for _, uid in data.Equipped do
 		local owned = data.Pets[uid]
 		if owned then
-			table.insert(ids, owned.P)
+			table.insert(ids, owned.P .. ":" .. (owned.V or 0))
 		end
 	end
 	player:SetAttribute("EquippedPets", table.concat(ids, ","))
@@ -581,10 +582,10 @@ local function cleanEquipped(player: Player, data)
 end
 
 -- adds a pet to the inventory (auto-equips it if there is a free slot)
-givePet = function(player: Player, data, petId: string, autoEquip: boolean?): string
+givePet = function(player: Player, data, petId: string, autoEquip: boolean?, variant: number?): string
 	local uid = "p" .. data.NextPetId
 	data.NextPetId += 1
-	data.Pets[uid] = { P = petId, L = false }
+	data.Pets[uid] = { P = petId, L = false, V = variant or 0 }
 	data.Index[petId] = true
 	if autoEquip ~= false and #data.Equipped < equipSlots(player) then
 		table.insert(data.Equipped, uid)
@@ -1129,13 +1130,14 @@ actions.GivePet = function(admin: Player, args)
 	if not pet then
 		return false, "Pick a pet"
 	end
-	givePet(target, data, pet.Id, true)
+	local variant = math.clamp(math.floor(tonumber(args.Variant) or 0), 0, Pets.MaxVariant)
+	givePet(target, data, pet.Id, true, variant)
 	push(target)
-	notify(target, "PetGranted", { Pets = { pet.Id } })
+	notify(target, "PetGranted", { Pets = { pet.Id }, Variants = { variant } })
 	if target ~= admin then
-		notify(target, "Gift", { Text = "An admin gave you " .. pet.Icon .. " " .. pet.Name .. "!" })
+		notify(target, "Gift", { Text = "An admin gave you " .. pet.Icon .. " " .. Pets.FullName(pet.Id, variant) .. "!" })
 	end
-	return true, "Gave " .. pet.Name .. " to " .. target.DisplayName
+	return true, "Gave " .. Pets.FullName(pet.Id, variant) .. " to " .. target.DisplayName
 end
 
 actions.SetPass = function(admin: Player, args)
@@ -1262,21 +1264,63 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 		return false, "Pet inventory full! Delete some pets."
 	end
 	local field = egg.Currency
-	local cost = Config.EggPrice(data.Owned, egg.Price) * count
+	local priceMult = Config.EventProduct("EggPriceMult", eventActive)
+	local cost = math.max(1, math.floor(Config.EggPrice(data.Owned, egg.Price) * count * priceMult + 0.5))
 	if (data[field] or 0) < cost then
 		return false, "Not enough " .. Config.Currencies[field].Name .. "!"
 	end
 	lastHatch[player] = os.clock()
 	data[field] -= cost
 	local luck = hatchLuck(player, data)
-	local results = {}
+	local results, variants = {}, {}
 	for _ = 1, count do
 		local petId = Pets.Roll(egg.Id, luck, rng)
-		givePet(player, data, petId)
+		local variant = Pets.RollVariant(rng)
+		givePet(player, data, petId, true, variant)
 		table.insert(results, petId)
+		table.insert(variants, variant)
 	end
 	push(player)
-	return true, results
+	return true, results, variants
+end
+
+-- Fuse 3 identical unlocked pets (same variant) into 1 of the next variant.
+-- Unequipped copies are used first; `preferUid` is always one of the three.
+local function fuseGroup(player: Player, data, petId: string, variant: number, preferUid: string?): number?
+	local group = {}
+	for id, p in data.Pets do
+		if p.P == petId and (p.V or 0) == variant and not p.L then
+			table.insert(group, id)
+		end
+	end
+	if #group < Pets.FuseCount then
+		return nil
+	end
+	table.sort(group, function(a, b)
+		if (a == preferUid) ~= (b == preferUid) then
+			return a == preferUid
+		end
+		local ea, eb = table.find(data.Equipped, a) ~= nil, table.find(data.Equipped, b) ~= nil
+		if ea ~= eb then
+			return not ea
+		end
+		return a < b
+	end)
+	local wasEquipped = false
+	for i = 1, Pets.FuseCount do
+		local id = group[i]
+		local at = table.find(data.Equipped, id)
+		if at then
+			table.remove(data.Equipped, at)
+			wasEquipped = true
+		end
+		data.Pets[id] = nil
+	end
+	local newUid = givePet(player, data, petId, false, variant + 1)
+	if wasEquipped then
+		table.insert(data.Equipped, newUid)
+	end
+	return variant + 1
 end
 
 PetAction.OnServerInvoke = function(player, action, uid)
@@ -1287,8 +1331,57 @@ PetAction.OnServerInvoke = function(player, action, uid)
 	local slots = equipSlots(player)
 	local owned = if type(uid) == "string" then data.Pets[uid] else nil
 	local equippedAt = if type(uid) == "string" then table.find(data.Equipped, uid) else nil
+	local payload = nil
 
-	if action == "Equip" then
+	if action == "Fuse" then
+		if not owned then
+			return false, "Pet not found"
+		end
+		if (owned.V or 0) >= Pets.MaxVariant then
+			return false, "That pet is already Rainbow!"
+		end
+		if owned.L then
+			return false, "Unlock it first (locked pets can't be fused)"
+		end
+		local fused = fuseGroup(player, data, owned.P, owned.V or 0, uid)
+		if not fused then
+			return false, "You need " .. Pets.FuseCount .. " identical unlocked pets"
+		end
+		payload = { Fused = { { Pet = owned.P, Variant = fused } } }
+	elseif action == "FuseAll" then
+		local made = {}
+		for _ = 1, 30 do
+			local changed = false
+			local groups = {}
+			for _, p in data.Pets do
+				local v = p.V or 0
+				if not p.L and v < Pets.MaxVariant then
+					local key = p.P .. ":" .. v
+					groups[key] = (groups[key] or 0) + 1
+				end
+			end
+			for key, count in groups do
+				if count >= Pets.FuseCount then
+					local petId, v = table.unpack(string.split(key, ":"))
+					local fused = fuseGroup(player, data, petId, tonumber(v) :: number, nil)
+					if fused then
+						table.insert(made, { Pet = petId, Variant = fused })
+						changed = true
+					end
+				end
+			end
+			if not changed then
+				break
+			end
+		end
+		if #made == 0 then
+			return false, "Nothing to fuse - you need 3 identical unlocked pets"
+		end
+		table.sort(made, function(a, b)
+			return Pets.Score(a.Pet, a.Variant) > Pets.Score(b.Pet, b.Variant)
+		end)
+		payload = { Fused = made }
+	elseif action == "Equip" then
 		if not owned then
 			return false, "Pet not found"
 		end
@@ -1324,7 +1417,7 @@ PetAction.OnServerInvoke = function(player, action, uid)
 			table.insert(all, id)
 		end
 		table.sort(all, function(a, b)
-			return Pets.Score(data.Pets[a].P) > Pets.Score(data.Pets[b].P)
+			return Pets.Score(data.Pets[a].P, data.Pets[a].V) > Pets.Score(data.Pets[b].P, data.Pets[b].V)
 		end)
 		data.Equipped = {}
 		for i = 1, math.min(slots, #all) do
@@ -1342,7 +1435,7 @@ PetAction.OnServerInvoke = function(player, action, uid)
 	cleanEquipped(player, data)
 	updatePetAttribute(player)
 	push(player)
-	return true, nil
+	return true, payload
 end
 
 ----------------------------------------------------------------------

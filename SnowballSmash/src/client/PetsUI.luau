@@ -25,7 +25,7 @@ local player = Players.LocalPlayer
 local PetsUI = {}
 PetsUI.Callbacks = {
 	Hatch = function(_eggId: string, _count: number, _fast: boolean?): boolean return false end, -- returns when the hatch (and animation) is done
-	Action = function(_action: string, _uid: string?) end,
+	Action = function(_action: string, _uid: string?): (boolean, any) return false, nil end,
 	BuyPass = function(_key: string) end,
 }
 PetsUI.NearEgg = nil :: string?
@@ -51,21 +51,32 @@ end
 -- Small widgets
 ----------------------------------------------------------------------
 -- A pet tile: rarity background, emoji, optional name/bonus line
-local function petTile(parent: Instance, petId: string, size: Vector2, showName: boolean, discovered: boolean?): Frame
+local function petTile(parent: Instance, petId: string, size: Vector2, showName: boolean, discovered: boolean?, variant: number?): Frame
 	local pet = Pets.ById[petId]
 	local known = discovered ~= false
+	local v = variant or 0
 	local tile = new("Frame", {
 		BackgroundColor3 = if known then rarityColor(pet.Rarity) else Color3.fromRGB(50, 50, 62),
 		Size = UDim2.fromOffset(size.X, size.Y),
 		Parent = parent,
 	})
 	UIKit.corner(tile, 12)
-	UIKit.stroke(tile, 3)
+	local tileStroke = UIKit.stroke(tile, 3)
+	if v > 0 and known then
+		tileStroke.Color = Pets.Variants[v].Color
+		tileStroke.Thickness = 4.5
+	end
 	UIKit.gradient(tile, { Color3.new(1, 1, 1), Color3.new(0.6, 0.6, 0.65) }, 90)
 	local iconHeight = size.Y * (if showName then 0.56 else 0.78)
 	if known then
 		-- the real 3D pet
-		PetModels.viewport(petId, tile, UDim2.new(0, iconHeight * 1.15, 0, iconHeight), UDim2.new(0.5, 0, 0, size.Y * 0.03), Vector2.new(0.5, 0))
+		PetModels.viewport(petId, tile, UDim2.new(0, iconHeight * 1.15, 0, iconHeight), UDim2.new(0.5, 0, 0, size.Y * 0.03), Vector2.new(0.5, 0), v)
+		if v > 0 and showName then
+			local tag = UIKit.label({ Text = "★ " .. Pets.VariantName(v), TextColor3 = Pets.Variants[v].Color, TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.new(1, -10, 0, 16), Position = UDim2.fromOffset(6, 4), Stroke = 2, Parent = tile })
+			if v == 2 then
+				UIKit.gradient(tag, { Color3.fromRGB(255, 90, 140), Color3.fromRGB(255, 230, 90), Color3.fromRGB(100, 255, 160), Color3.fromRGB(90, 190, 255), Color3.fromRGB(210, 120, 255) }, 0)
+			end
+		end
 	else
 		UIKit.label({
 			Text = "?",
@@ -87,7 +98,7 @@ local function petTile(parent: Instance, petId: string, size: Vector2, showName:
 			Parent = tile,
 		})
 		UIKit.label({
-			Text = if known then "+" .. pet.Coins .. "%" else pet.Rarity,
+			Text = if known then "+" .. Config.Short(pet.Coins * Pets.Variants[v].Mult) .. "%" else pet.Rarity,
 			TextColor3 = if known then Color3.fromRGB(255, 230, 90) else Color3.fromRGB(200, 200, 210),
 			Size = UDim2.new(1, -10, 0, size.Y * 0.15),
 			Position = UDim2.new(0.5, 0, 0, size.Y * 0.79),
@@ -196,9 +207,14 @@ end
 local function fillEggPanel(eggId: string)
 	local egg = Pets.EggById[eggId]
 	eggTitle.Text = "🥚 " .. egg.Name
-	local price = if data then Config.EggPrice(data.Owned, egg.Price) else egg.Price
+	local state = ReplicatedStorage:FindFirstChild("GameState")
+	local partyMult = Config.EventProduct("EggPriceMult", function(id)
+		local ends = state and state:GetAttribute("Event_" .. id)
+		return type(ends) == "number" and ends > Workspace:GetServerTimeNow()
+	end)
+	local price = math.max(1, math.floor((if data then Config.EggPrice(data.Owned, egg.Price) else egg.Price) * partyMult + 0.5))
 	local currency = Config.Currencies[egg.Currency] or Config.Currencies.Coins
-	eggPrice.Text = currency.Icon .. " " .. Config.Commas(price) .. (if price < egg.Price then " 🏷️" else "")
+	eggPrice.Text = currency.Icon .. " " .. Config.Commas(price) .. (if price < egg.Price then (if partyMult < 1 then " 🎉" else " 🏷️") else "")
 	eggPrice.TextColor3 = currency.Color
 	for _, c in oddsRow:GetChildren() do
 		if c:IsA("GuiObject") then
@@ -337,7 +353,8 @@ local overlay = new("Frame", {
 local flash = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 70, Parent = overlay })
 
 -- plays the hatch animation for `results` (list of pet ids); yields until done
-function PetsUI.playHatch(eggId: string, results: { string }, newPets: { [string]: boolean }, fast: boolean?)
+-- variants (optional): parallel list of variant numbers (0 normal, 1 Golden, 2 Rainbow)
+function PetsUI.playHatch(eggId: string, results: { string }, newPets: { [string]: boolean }, fast: boolean?, variants: { number }?)
 	local egg = Pets.EggById[eggId]
 	local speed = if fast then 0.55 else 1
 	overlay.Visible = true
@@ -372,7 +389,8 @@ function PetsUI.playHatch(eggId: string, results: { string }, newPets: { [string
 	for i, h in holders do
 		h.Sprite:Destroy()
 		local pet = Pets.ById[results[i]]
-		bestOrder = math.max(bestOrder, Pets.Rarities[pet.Rarity].Order)
+		local variant = if variants then variants[i] or 0 else 0
+		bestOrder = math.max(bestOrder, Pets.Rarities[pet.Rarity].Order, if variant > 0 then 4 else 0)
 		local rays = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(340, 340), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42), ZIndex = 62, Parent = h.Holder })
 		for r = 1, 8 do
 			local ray = new("Frame", {
@@ -394,7 +412,7 @@ function PetsUI.playHatch(eggId: string, results: { string }, newPets: { [string
 				RunService.RenderStepped:Wait()
 			end
 		end)
-		local icon, petModel = PetModels.viewport(pet.Id, h.Holder, UDim2.fromOffset(250, 250), UDim2.fromScale(0.5, 0.42), Vector2.new(0.5, 0.5))
+		local icon, petModel = PetModels.viewport(pet.Id, h.Holder, UDim2.fromOffset(250, 250), UDim2.fromScale(0.5, 0.42), Vector2.new(0.5, 0.5), variant)
 		icon.ZIndex = 64
 		UIKit.pop(icon, 0.2)
 		task.spawn(function()
@@ -405,7 +423,7 @@ function PetsUI.playHatch(eggId: string, results: { string }, newPets: { [string
 				petModel:PivotTo(CFrame.new(0, math.sin(os.clock() * 3) * 0.12, 0) * CFrame.Angles(0, spin, 0))
 			end
 		end)
-		local name = UIKit.label({ Text = pet.Name, Size = UDim2.fromOffset(300, 44), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.72), Stroke = 3.5, ZIndex = 64, Parent = h.Holder })
+		local name = UIKit.label({ Text = Pets.FullName(pet.Id, variant), Size = UDim2.fromOffset(300, 44), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.72), Stroke = 3.5, ZIndex = 64, Parent = h.Holder })
 		local rarity = UIKit.label({ Text = string.upper(pet.Rarity), TextColor3 = rarityColor(pet.Rarity), Size = UDim2.fromOffset(300, 36), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.84), Stroke = 3, ZIndex = 64, Parent = h.Holder })
 		if pet.Rarity == "Secret" then
 			UIKit.gradient(rarity, { Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 220, 60), Color3.fromRGB(80, 220, 255), Color3.fromRGB(200, 90, 255) }, 0)
@@ -444,14 +462,18 @@ end
 local petsPanel = UIKit.panel(Hud.Root, "Pets", "🐾", 860, 600)
 Panels.register("Pets", petsPanel)
 
-local countLabel = UIKit.label({ Text = "", TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.fromOffset(330, 30), Position = UDim2.fromOffset(4, 6), Stroke = 2.5, Parent = petsPanel.Content })
-local equipBest = UIKit.button({ Size = UDim2.fromOffset(190, 48), Position = UDim2.new(1, -404, 0, 0), Color = C.Green, DarkColor = C.GreenDark, Text = "Equip Best", Parent = petsPanel.Content, OnClick = function()
+local countLabel = UIKit.label({ Text = "", TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.fromOffset(200, 30), Position = UDim2.fromOffset(4, 6), Stroke = 2.5, Parent = petsPanel.Content })
+local fuseAll = UIKit.button({ Size = UDim2.fromOffset(160, 48), Position = UDim2.new(1, -562, 0, 0), Color = Color3.fromRGB(255, 190, 40), DarkColor = Color3.fromRGB(190, 120, 10), Text = "Fuse All ✨", Parent = petsPanel.Content, OnClick = function()
+	PetsUI.Callbacks.Action("FuseAll", nil)
+end })
+fuseAll.Label.TextXAlignment = Enum.TextXAlignment.Center
+local equipBest = UIKit.button({ Size = UDim2.fromOffset(190, 48), Position = UDim2.new(1, -394, 0, 0), Color = C.Green, DarkColor = C.GreenDark, Text = "Equip Best", Parent = petsPanel.Content, OnClick = function()
 	PetsUI.Callbacks.Action("EquipBest", nil)
 end })
 equipBest.Label.TextXAlignment = Enum.TextXAlignment.Center
 local confirmDelete = 0
 local deleteAll
-deleteAll = UIKit.button({ Size = UDim2.fromOffset(200, 48), Position = UDim2.new(1, -204, 0, 0), Color = C.Red, DarkColor = C.RedDark, Text = "Delete Unlocked", Parent = petsPanel.Content, OnClick = function()
+deleteAll = UIKit.button({ Size = UDim2.fromOffset(190, 48), Position = UDim2.new(1, -194, 0, 0), Color = C.Red, DarkColor = C.RedDark, Text = "Delete Unlocked", Parent = petsPanel.Content, OnClick = function()
 	if os.clock() - confirmDelete < 3 then
 		confirmDelete = 0
 		deleteAll.SetText("Delete Unlocked")
@@ -486,9 +508,9 @@ local selectedUid: string? = nil
 local bar = new("Frame", { BackgroundColor3 = C.WoodDark, Size = UDim2.new(1, 0, 0, 78), Position = UDim2.new(0, 0, 1, -78), Parent = petsPanel.Content })
 UIKit.corner(bar, 12)
 UIKit.stroke(bar, 3)
-local barInfo = UIKit.label({ Text = "Click a pet to select it", TextXAlignment = Enum.TextXAlignment.Left, TextScaled = false, TextSize = 20, TextWrapped = true, Size = UDim2.new(1, -470, 1, -12), Position = UDim2.fromOffset(14, 6), Stroke = 2, RichText = true, Parent = bar })
+local barInfo = UIKit.label({ Text = "Click a pet to select it", TextXAlignment = Enum.TextXAlignment.Left, TextScaled = false, TextSize = 20, TextWrapped = true, Size = UDim2.new(1, -490, 1, -12), Position = UDim2.fromOffset(14, 6), Stroke = 2, RichText = true, Parent = bar })
 local function barButton(text: string, x: number, color: Color3, dark: Color3, action: string): UIKit.Button
-	local b = UIKit.button({ Size = UDim2.fromOffset(140, 52), Position = UDim2.new(1, x, 0.5, -26), Color = color, DarkColor = dark, Text = text, Parent = bar, Corner = 10, OnClick = function()
+	local b = UIKit.button({ Size = UDim2.fromOffset(112, 52), Position = UDim2.new(1, x, 0.5, -26), Color = color, DarkColor = dark, Text = text, Parent = bar, Corner = 10, OnClick = function()
 		if selectedUid then
 			PetsUI.Callbacks.Action(action, selectedUid)
 		end
@@ -496,9 +518,10 @@ local function barButton(text: string, x: number, color: Color3, dark: Color3, a
 	b.Label.TextXAlignment = Enum.TextXAlignment.Center
 	return b
 end
-local equipButton = barButton("Equip", -456, C.Green, C.GreenDark, "Equip")
-local lockButton = barButton("Lock", -306, C.Blue, C.BlueDark, "ToggleLock")
-barButton("Delete", -156, C.Red, C.RedDark, "Delete")
+local equipButton = barButton("Equip", -472, C.Green, C.GreenDark, "Equip")
+local lockButton = barButton("Lock", -354, C.Blue, C.BlueDark, "ToggleLock")
+local fuseButton = barButton("Fuse", -236, Color3.fromRGB(255, 190, 40), Color3.fromRGB(190, 120, 10), "Fuse")
+barButton("Delete", -118, C.Red, C.RedDark, "Delete")
 
 local function slots(): number
 	return Pets.BaseEquipSlots + (if hasPass("ExtraPets") then Pets.ExtraSlotsPass else 0)
@@ -513,11 +536,29 @@ local function refreshBar()
 	end
 	local pet = Pets.ById[owned.P]
 	local hex = rarityColor(pet.Rarity):ToHex()
-	barInfo.Text = string.format('%s <b>%s</b>  <font color="#%s">%s</font>\n%s', pet.Icon, pet.Name, hex, pet.Rarity, Pets.BonusText(owned.P))
+	local v = owned.V or 0
+	barInfo.Text = string.format('%s <b>%s</b>  <font color="#%s">%s</font>\n%s', pet.Icon, Pets.FullName(owned.P, v), hex, pet.Rarity, Pets.BonusText(owned.P, v))
 	local equipped = table.find(data.Equipped, selectedUid) ~= nil
 	equipButton.SetText(if equipped then "Unequip" else "Equip")
 	equipButton.SetColors(if equipped then C.Grey else C.Green, if equipped then C.GreyDark else C.GreenDark)
 	lockButton.SetText(if owned.L then "Unlock" else "Lock")
+	-- how many identical unlocked pets do we have?
+	local same = 0
+	for _, p in data.Pets do
+		if p.P == owned.P and (p.V or 0) == v and not p.L then
+			same += 1
+		end
+	end
+	if v >= Pets.MaxVariant then
+		fuseButton.SetText("Max ★")
+		fuseButton.SetColors(C.Grey, C.GreyDark)
+	elseif same >= Pets.FuseCount and not owned.L then
+		fuseButton.SetText("Fuse! ✨")
+		fuseButton.SetColors(Color3.fromRGB(255, 190, 40), Color3.fromRGB(190, 120, 10))
+	else
+		fuseButton.SetText(string.format("Fuse %d/%d", math.min(same, Pets.FuseCount), Pets.FuseCount))
+		fuseButton.SetColors(C.Grey, C.GreyDark)
+	end
 end
 
 -- the Equip button toggles
@@ -541,17 +582,17 @@ local function refreshInventory()
 	local count = 0
 	for uid, owned in data.Pets do
 		count += 1
-		table.insert(list, { Uid = uid, Pet = owned.P, Locked = owned.L, Equipped = table.find(data.Equipped, uid) ~= nil })
+		table.insert(list, { Uid = uid, Pet = owned.P, Variant = owned.V or 0, Locked = owned.L, Equipped = table.find(data.Equipped, uid) ~= nil })
 	end
 	table.sort(list, function(a, b)
 		if a.Equipped ~= b.Equipped then
 			return a.Equipped
 		end
-		return Pets.Score(a.Pet) > Pets.Score(b.Pet)
+		return Pets.Score(a.Pet, a.Variant) > Pets.Score(b.Pet, b.Variant)
 	end)
 	countLabel.Text = string.format("Equipped %d/%d  ·  Pets %d/%d", #data.Equipped, slots(), count, Pets.MaxInventory + Config.PetStorageBonus(data.Owned))
 	for i, item in list do
-		local tile = petTile(grid, item.Pet, Vector2.new(118, 140), true)
+		local tile = petTile(grid, item.Pet, Vector2.new(118, 140), true, nil, item.Variant)
 		tile.LayoutOrder = i
 		if item.Equipped then
 			local check = new("Frame", { BackgroundColor3 = C.Green, Size = UDim2.fromOffset(30, 30), Position = UDim2.fromOffset(-6, -6), Parent = tile })
@@ -653,19 +694,21 @@ followFolder.Parent = Workspace
 type Follower = { Model: Model, Pos: Vector3, Dir: Vector3, PetId: string }
 local followers: { [Player]: { Follower } } = {}
 
-local function makeFollower(petId: string): Follower
-	local model = PetModels.build(petId)
+-- key = "petId:variant"
+local function makeFollower(key: string): Follower
+	local petId, variant = table.unpack(string.split(key, ":"))
+	local model = PetModels.build(petId, true, tonumber(variant) or 0)
 	model.Parent = followFolder
-	return { Model = model, Pos = Vector3.zero, Dir = Vector3.new(0, 0, -1), PetId = petId }
+	return { Model = model, Pos = Vector3.zero, Dir = Vector3.new(0, 0, -1), PetId = key }
 end
 
 local function syncFollowers(p: Player)
 	local ids = string.split(tostring(p:GetAttribute("EquippedPets") or ""), ",")
 	local list = followers[p] or {}
 	local want = {}
-	for _, id in ids do
-		if Pets.ById[id] then
-			table.insert(want, id)
+	for _, key in ids do
+		if Pets.ById[(string.split(key, ":"))[1]] then
+			table.insert(want, key)
 		end
 	end
 	-- rebuild only when the set changed

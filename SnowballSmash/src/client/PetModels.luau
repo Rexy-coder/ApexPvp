@@ -624,6 +624,73 @@ local function addFX(m: Model, root: BasePart, rarity: string)
 end
 
 ----------------------------------------------------------------------
+-- Shiny variants: Golden (1) and Rainbow (2)
+----------------------------------------------------------------------
+-- Rainbow parts slowly cycle through the colours of the rainbow
+local rainbowParts: { [BasePart]: number } = setmetatable({}, { __mode = "k" }) :: any
+local RunService = game:GetService("RunService")
+local lastRainbow = 0
+RunService.Heartbeat:Connect(function()
+	local t = os.clock()
+	if t - lastRainbow < 0.05 then
+		return
+	end
+	lastRainbow = t
+	for part, offset in rainbowParts do
+		if part.Parent then
+			part.Color = Color3.fromHSV((t * 0.3 + offset) % 1, 0.62, 1)
+		end
+	end
+end)
+
+local function applyVariant(m: Model, variant: number)
+	for _, p in m:GetDescendants() do
+		if p:IsA("BasePart") and p.Name ~= "Root" and p.Transparency < 0.95 then
+			local c = p.Color
+			if c.R + c.G + c.B > 0.45 then -- keep dark eyes and mouths dark
+				if variant == 1 then
+					p.Color = c:Lerp(GOLD, 0.68 + 0.22 * (1 - (c.R + c.G + c.B) / 3))
+					p.Reflectance = 0.18
+				else
+					local pos = p.CFrame.Position
+					local offset = (pos.Y * 0.4 + pos.X * 0.25 + 0.88) % 1
+					p.Color = Color3.fromHSV(offset, 0.62, 1)
+					rainbowParts[p] = offset
+					p.Reflectance = 0.12
+				end
+				if p.Material == Enum.Material.Glass then
+					p.Material = Enum.Material.SmoothPlastic
+					p.Transparency = 0
+				end
+			end
+		end
+	end
+end
+
+local function addVariantFX(root: BasePart, variant: number)
+	local e = Instance.new("ParticleEmitter")
+	e.Name = "VariantFX"
+	e.LightEmission = 1
+	e.Rate = 10
+	e.Lifetime = NumberRange.new(0.7, 1.3)
+	e.Speed = NumberRange.new(0.5, 1.6)
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.4, 0.34), NumberSequenceKeypoint.new(1, 0) })
+	if variant == 1 then
+		e.Color = ColorSequence.new(rgb(255, 245, 150), rgb(255, 190, 40))
+	else
+		e.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, rgb(255, 90, 140)),
+			ColorSequenceKeypoint.new(0.25, rgb(255, 230, 90)),
+			ColorSequenceKeypoint.new(0.5, rgb(100, 255, 160)),
+			ColorSequenceKeypoint.new(0.75, rgb(90, 190, 255)),
+			ColorSequenceKeypoint.new(1, rgb(210, 120, 255)),
+		})
+	end
+	e.Parent = root
+end
+
+----------------------------------------------------------------------
 -- Public API
 ----------------------------------------------------------------------
 -- fallback for a pet without a spec: a coloured critter
@@ -638,7 +705,8 @@ function PetModels.has(petId: string): boolean
 end
 
 -- fx = false skips the sparkles/light (e.g. for small UI previews)
-function PetModels.build(petId: string, fx: boolean?): Model
+-- variant: 0 normal, 1 Golden, 2 Rainbow
+function PetModels.build(petId: string, fx: boolean?, variant: number?): Model
 	local m = Instance.new("Model")
 	m.Name = petId
 	local root = newPart(m, "Part", Vector3.one * 0.4, CFrame.new(), WHITE, { Transparency = 1, Name = "Root" })
@@ -648,15 +716,22 @@ function PetModels.build(petId: string, fx: boolean?): Model
 	if spec.Extra then
 		spec.Extra(m, ctx)
 	end
+	local v = variant or 0
+	if v > 0 then
+		applyVariant(m, v)
+	end
 	local pet = Pets.ById[petId]
 	if pet and fx ~= false then
 		addFX(m, root, pet.Rarity)
+		if v > 0 then
+			addVariantFX(root, v)
+		end
 	end
 	return m
 end
 
 -- a ViewportFrame showing the pet (for tiles and the hatch screen)
-function PetModels.viewport(petId: string, parent: Instance, size: UDim2, position: UDim2?, anchor: Vector2?): (ViewportFrame, Model)
+function PetModels.viewport(petId: string, parent: Instance, size: UDim2, position: UDim2?, anchor: Vector2?, variant: number?): (ViewportFrame, Model)
 	local vp = Instance.new("ViewportFrame")
 	vp.BackgroundTransparency = 1
 	vp.Size = size
@@ -665,7 +740,7 @@ function PetModels.viewport(petId: string, parent: Instance, size: UDim2, positi
 	vp.Ambient = Color3.fromRGB(200, 200, 210)
 	vp.LightColor = Color3.fromRGB(255, 255, 255)
 	vp.LightDirection = Vector3.new(-0.4, -1, -0.6)
-	local model = PetModels.build(petId, false)
+	local model = PetModels.build(petId, false, variant)
 	model:PivotTo(CFrame.Angles(0, math.rad(-25), 0))
 	model.Parent = vp
 	local camera = Instance.new("Camera")

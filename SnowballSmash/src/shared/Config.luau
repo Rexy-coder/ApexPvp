@@ -328,6 +328,8 @@ export type EventDef = {
 	GravityMult: number?,
 	HatchLuck: number?,
 	Crazy: boolean?, -- a big "admin abuse" style event (see Config.CrazyEvents)
+	EggPriceMult: number?, -- Pet Party: eggs cost less
+	PetPowerMult: number?, -- Pet Party: equipped pets give more
 }
 
 Config.Events = {
@@ -342,7 +344,22 @@ Config.Events = {
 		Color = Color3.fromRGB(255, 90, 40), Crazy = true, Mutations = { "Molten" }, CoinMult = 1.5 },
 	{ Id = "Galaxy", Name = "Galaxy Event", Icon = "🌌", Desc = "Low gravity, x2 hatch luck, huge jumps and GALAXY obstacles (x15)!",
 		Color = Color3.fromRGB(150, 90, 255), Crazy = true, Mutations = { "Galaxy" }, AirMult = 1.8, GravityMult = 0.55, HatchLuck = 2 },
+	{ Id = "PetParty", Name = "Pet Party", Icon = "🎉", Desc = "Confetti! Eggs cost HALF and your equipped pets give +50% more!",
+		Color = Color3.fromRGB(255, 110, 190), Crazy = true, EggPriceMult = 0.5, PetPowerMult = 1.5 },
 } :: { EventDef }
+
+-- Multiply one numeric field (EggPriceMult, PetPowerMult...) over every running event.
+-- isActive(eventId) says whether an event is on (server and client each know differently).
+function Config.EventProduct(field: string, isActive: (string) -> boolean): number
+	local product = 1
+	for _, e in Config.Events do
+		local v = (e :: any)[field]
+		if v and isActive(e.Id) then
+			product *= v
+		end
+	end
+	return product
+end
 
 Config.EventById = {} :: { [string]: EventDef }
 for _, e in Config.Events do
@@ -385,7 +402,7 @@ Config.CrazyEvents = {
 	MaxMinutes = 50,
 	Minutes = 5,
 	WarningSeconds = 10,
-	Pool = { "Meteor", "Galaxy" },
+	Pool = { "Meteor", "Galaxy", "PetParty" },
 	-- Meteor Shower: a meteor crashes into the lobby every ShardEvery seconds and
 	-- leaves a glowing shard; touching it pays max(ShardMinCoins, best run x ShardBestShare)
 	ShardEvery = 2.5,

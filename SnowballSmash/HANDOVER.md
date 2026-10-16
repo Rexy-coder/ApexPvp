@@ -42,5 +42,10 @@ uploads icons (needs an Open Cloud API key; never share it). Universe ID 1077052
 - Update 4: 5 more upgrade branches, Blizzard Egg (6 pets with 3D models), winter icon +
   update picture in `docs/art/` (`icon_winter_512.png`, `update_winter_wonderland.png`).
 
+- Update 5 (Pet Paradise): Golden/Rainbow pet variants (`V` field on each owned pet), fusion
+  (PetAction `Fuse` / `FuseAll`), Fusion Machine in the lobby, Pet Party crazy event, shiny
+  hatches, admin can give shiny pets. Art in `docs/art/*pet_paradise*`.
+  The pet preview renders used for the art come from a small ray tracer (not in the repo).
+
 ## Ideas not built yet
 Nothing planned. Ask the owner what they want next.

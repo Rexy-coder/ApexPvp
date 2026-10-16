@@ -550,6 +550,57 @@ for _, l in { { -40, 28 }, { 40, 28 }, { -40, 84 }, { 40, 84 } } do
 	light.Parent = lamp
 end
 
+----------------------------------------------------------------------
+-- Fusion Machine (Update 5): walk up and press E to open the Pets menu
+----------------------------------------------------------------------
+do
+	local m = model(lobby, "FusionMachine")
+	local base = Vector3.new(62, P0.Y, 24)
+	part(m, { Name = "Base", Shape = Enum.PartType.Cylinder, Size = Vector3.new(3, 15, 15), CFrame = CFrame.new(base + Vector3.new(0, 1.5, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color = rgb(96, 110, 150), Material = Enum.Material.Slate })
+	part(m, { Name = "Ring", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.8, 15.6, 15.6), CFrame = CFrame.new(base + Vector3.new(0, 3.1, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color = YELLOW, Material = Enum.Material.Neon })
+	local dome = part(m, { Name = "Dome", Shape = Enum.PartType.Ball, Size = Vector3.new(11, 11, 11), CFrame = CFrame.new(base + Vector3.new(0, 9.5, 0)), Color = rgb(255, 150, 230), Material = Enum.Material.Glass, Transparency = 0.45 })
+	part(m, { Name = "Core", Shape = Enum.PartType.Ball, Size = Vector3.new(4.5, 4.5, 4.5), CFrame = CFrame.new(base + Vector3.new(0, 9.5, 0)), Color = rgb(255, 225, 110), Material = Enum.Material.Neon })
+	for i = 0, 2 do
+		local a = i / 3 * math.pi * 2
+		part(m, { Name = "Pod", Shape = Enum.PartType.Ball, Size = Vector3.one * 2, CFrame = CFrame.new(base + Vector3.new(math.cos(a) * 5.4, 4.8, math.sin(a) * 5.4)), Color = ({ rgb(255, 215, 70), rgb(255, 120, 200), rgb(110, 200, 255) })[i + 1], Material = Enum.Material.Neon })
+	end
+	local light = Instance.new("PointLight")
+	light.Color = rgb(255, 190, 240)
+	light.Range = 26
+	light.Brightness = 2
+	light.Parent = dome
+	local fuse = Instance.new("ProximityPrompt")
+	fuse.Name = "FusePrompt"
+	fuse.ActionText = "Fuse pets"
+	fuse.ObjectText = "Fusion Machine"
+	fuse.KeyboardKeyCode = Enum.KeyCode.F
+	fuse.HoldDuration = 0
+	fuse.MaxActivationDistance = 16
+	fuse.RequiresLineOfSight = false
+	fuse.Parent = dome
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(300, 90)
+	gui.StudsOffset = Vector3.new(0, 11.5, 0)
+	gui.MaxDistance = 120
+	gui.LightInfluence = 0
+	gui.Parent = dome
+	for i, info in { { "✨ PET FUSION", 50, WHITE }, { "3 same pets = 1 shiny!", 28, rgb(255, 225, 120) } } do
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.new(1, 0, 0, info[2])
+		label.Position = UDim2.fromOffset(0, if i == 1 then 0 else 52)
+		label.Font = Enum.Font.FredokaOne
+		label.TextScaled = true
+		label.Text = info[1]
+		label.TextColor3 = info[3]
+		label.Parent = gui
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 3
+		stroke.Color = rgb(28, 18, 12)
+		stroke.Parent = label
+	end
+end
+
 -- trees around the plaza
 for _ = 1, 48 do
 	local x = rand(-PLAZA_W / 2 + 6, PLAZA_W / 2 - 6)
@@ -557,8 +608,9 @@ for _ = 1, 48 do
 	-- keep clear of the pad, spawn, egg row (z ~ 100) and the leaderboards (x ~ +-72)
 	local nearEggs = z > 86 and math.abs(x) < 86
 	local nearBoards = math.abs(x) > 56 and z > 48 and z < 92
+	local nearMachine = math.abs(x - 62) < 14 and math.abs(z - 24) < 14
 	local nearLamps = math.abs(math.abs(x) - 40) < 7 and (math.abs(z - 28) < 7 or math.abs(z - 84) < 7)
-	if (math.abs(x) > 24 or z > 80) and not nearEggs and not nearBoards and not nearLamps then
+	if (math.abs(x) > 24 or z > 80) and not nearEggs and not nearBoards and not nearLamps and not nearMachine then
 		if not (math.abs(x) < 10 and math.abs(z - 60) < 10) then
 			pineTree(decor, CFrame.new(x, P0.Y, z) * CFrame.Angles(0, rand(0, 6), 0), rand(1, 1.6))
 		end
@@ -663,7 +715,7 @@ end
 -- live server state (storm end times) replicated to every client as attributes
 local gameState = Instance.new("Configuration")
 gameState.Name = "GameState"
-for _, id in { "Coins2", "Coins3", "Mutation", "Growth", "Speed", "Lucky", "Meteor", "Galaxy" } do
+for _, id in { "Coins2", "Coins3", "Mutation", "Growth", "Speed", "Lucky", "Meteor", "Galaxy", "PetParty" } do
 	gameState:SetAttribute("Event_" .. id, 0)
 end
 gameState:SetAttribute("CrazyAuto", true)

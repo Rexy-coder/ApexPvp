@@ -29,6 +29,7 @@ Sounds.EventMusic = ""
 Sounds.CrazyMusic = {
 	Meteor = "",
 	Galaxy = "",
+	PetParty = "",
 }
 
 ----------------------------------------------------------------------
