@@ -11,7 +11,7 @@ Branch: `claude/roblox-game-design-zit1io`. Read `README.md` for the full featur
 
 ## Layout
 - `src/shared/` Config (upgrades, skins, events, currencies, winter/halloween), Monetization
-  (pass/product IDs), Sounds, CourseGen (endless seeded course), Pets (eggs + 29 pets)
+  (pass/product IDs), Sounds, CourseGen (endless seeded course), Pets (eggs + 35 pets)
 - `src/server/` GameServer (data, purchases, admin, crazy events), AdminConfig, Codes
 - `src/client/` Main (wiring), Hud, Panels (shop + admin panel), UpgradeTree, Runner,
   CourseBuilder, PetsUI, PetModels (3D pets), CrazyFX, DailyUI, Effects, UIKit
@@ -19,7 +19,7 @@ Branch: `claude/roblox-game-design-zit1io`. Read `README.md` for the full featur
 
 ## What exists
 - Core: charge a power bar, roll a snowball down an endless mountain, smash things for coins,
-  hex upgrade tree (17 branches / 68 upgrades), skins, rebirth, turbo boosts.
+  hex upgrade tree (22 branches / 85 upgrades), skins, rebirth, turbo boosts.
 - Update 2 (Halloween): pets, eggs, Index, candy, daily rewards, codes, leaderboards.
 - Update 3: Winter event (presents, Winter Egg, Candy Cane Ball, lobby decorations), crazy events
   (Meteor Shower, Galaxy Event, random every 30-50 min with a 10 s countdown), rebuilt admin panel
@@ -39,5 +39,8 @@ uploads icons (needs an Open Cloud API key; never share it). Universe ID 1077052
   First job for a Studio-connected session: play-test everything, especially the crazy events,
   3D pets (PetModels), the admin panel and the hatch screen.
 
+- Update 4: 5 more upgrade branches, Blizzard Egg (6 pets with 3D models), winter icon +
+  update picture in `docs/art/` (`icon_winter_512.png`, `update_winter_wonderland.png`).
+
 ## Ideas not built yet
-Winter game icon + update picture, more upgrade branches, more eggs/pets.
+Nothing planned. Ask the owner what they want next.

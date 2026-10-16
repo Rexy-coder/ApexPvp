@@ -344,7 +344,7 @@ local function smash(o, st, center: Vector3)
 	st.BestCombo = math.max(st.BestCombo, st.Combo)
 
 	local crit = math.random() < stats.Crit
-	local mult = math.min(st.Combo, P.MaxCombo)
+	local mult = math.min(st.Combo, stats.MaxCombo or P.MaxCombo)
 	local sizeBonus = 1 + (st.R - P.StartRadius) / P.SizeBonusDiv
 	local coins = o.Coins * mult * sizeBonus * stats.CoinMult * o.Mult * (if crit then 2 else 1)
 	coins = math.floor(coins + 0.5)
@@ -438,7 +438,8 @@ function Runner.turbo()
 		return
 	end
 	st.TurboUntil = st.Time + (st.Stats.TurboTime or Config.Turbo.Duration)
-	st.V = math.min(P.MaxSpeed + Config.Turbo.SpeedAdd, st.V + Config.Turbo.SpeedAdd)
+	local burst = st.Stats.TurboSpeed or Config.Turbo.SpeedAdd
+	st.V = math.min(P.MaxSpeed + burst, st.V + burst)
 	st.Stopped = 0
 	Effects.play("Boost", 0.8)
 	Effects.play("Launch", 1.3)
@@ -529,7 +530,7 @@ function Runner.update(dt: number)
 		elseif not turbo then
 			st.V -= stats.Friction * dt
 		end
-		local maxSpeed = if turbo then P.MaxSpeed + Config.Turbo.SpeedAdd else P.MaxSpeed
+		local maxSpeed = if turbo then P.MaxSpeed + (stats.TurboSpeed or Config.Turbo.SpeedAdd) else P.MaxSpeed
 		st.V = math.clamp(st.V, 0, math.max(maxSpeed, st.V - 60 * dt))
 		local ds = st.V * dt
 		st.S += ds
@@ -592,7 +593,7 @@ function Runner.update(dt: number)
 					local part = p.Part
 					if not p.Taken and part and math.abs(p.S - st.S) < st.R + 1.5 and math.abs(p.X - st.X) < st.R + 1.5 and part.Position.Y < center.Y + st.R + 3 then
 						p.Taken = true
-						local value = math.floor(P.PickupValue * stats.CoinMult + 0.5)
+						local value = math.floor(P.PickupValue * (stats.PickupMult or 1) * stats.CoinMult + 0.5)
 						st.Coins += value
 						Hud.setRunCoins(st.Coins)
 						Effects.play("Coin", 1.3 + math.random() * 0.3, 0.4)

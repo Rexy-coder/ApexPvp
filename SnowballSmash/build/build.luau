@@ -308,11 +308,12 @@ end
 -- Egg stands (Update 2: pets). Client shows the egg panel when you walk up.
 ----------------------------------------------------------------------
 local EGGS = {
-	{ Id = "Frosty", Name = "Frosty Egg", Price = "2,500 coins", Color = rgb(170, 225, 255), X = -60 },
-	{ Id = "Glacier", Name = "Glacier Egg", Price = "40,000 coins", Color = rgb(90, 170, 255), X = -30 },
-	{ Id = "Aurora", Name = "Aurora Egg", Price = "500,000 coins", Color = rgb(190, 120, 255), X = 0 },
-	{ Id = "Spooky", Name = "Spooky Egg", Price = "250 candy", Color = rgb(255, 130, 30), X = 30 },
-	{ Id = "Winter", Name = "Winter Egg", Price = "300 presents", Color = rgb(235, 60, 70), X = 60 },
+	{ Id = "Frosty", Name = "Frosty Egg", Price = "2,500 coins", Color = rgb(170, 225, 255), X = -75 },
+	{ Id = "Glacier", Name = "Glacier Egg", Price = "40,000 coins", Color = rgb(90, 170, 255), X = -45 },
+	{ Id = "Aurora", Name = "Aurora Egg", Price = "500,000 coins", Color = rgb(190, 120, 255), X = -15 },
+	{ Id = "Blizzard", Name = "Blizzard Egg", Price = "5,000,000 coins", Color = rgb(110, 90, 235), X = 15 },
+	{ Id = "Spooky", Name = "Spooky Egg", Price = "250 candy", Color = rgb(255, 130, 30), X = 45 },
+	{ Id = "Winter", Name = "Winter Egg", Price = "300 presents", Color = rgb(235, 60, 70), X = 75 },
 }
 local eggFolder = folder(lobby, "Eggs")
 for _, e in EGGS do
@@ -554,7 +555,7 @@ for _ = 1, 48 do
 	local x = rand(-PLAZA_W / 2 + 6, PLAZA_W / 2 - 6)
 	local z = rand(30, PLAZA_D - 6)
 	-- keep clear of the pad, spawn, egg row (z ~ 100) and the leaderboards (x ~ +-72)
-	local nearEggs = z > 86 and math.abs(x) < 72
+	local nearEggs = z > 86 and math.abs(x) < 86
 	local nearBoards = math.abs(x) > 56 and z > 48 and z < 92
 	local nearLamps = math.abs(math.abs(x) - 40) < 7 and (math.abs(z - 28) < 7 or math.abs(z - 84) < 7)
 	if (math.abs(x) > 24 or z > 80) and not nearEggs and not nearBoards and not nearLamps then

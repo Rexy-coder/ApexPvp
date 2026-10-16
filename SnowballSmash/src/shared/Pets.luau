@@ -64,6 +64,21 @@ Pets.Eggs = {
 		},
 	},
 	{
+		Id = "Blizzard",
+		Name = "Blizzard Egg",
+		Currency = "Coins",
+		Price = 5000000,
+		Color = Color3.fromRGB(110, 90, 235),
+		Pets = {
+			{ Id = "SnowSprite", Name = "Snow Sprite", Icon = "✨", Rarity = "Common", Chance = 45, Coins = 300 },
+			{ Id = "IciclePup", Name = "Icicle Pup", Icon = "🐶", Rarity = "Common", Chance = 30, Coins = 400 },
+			{ Id = "FrostMammoth", Name = "Frost Mammoth", Icon = "🦣", Rarity = "Rare", Chance = 17, Coins = 800, Growth = 15 },
+			{ Id = "BlizzardEagle", Name = "Blizzard Eagle", Icon = "🦅", Rarity = "Epic", Chance = 7, Coins = 1600, Launch = 25 },
+			{ Id = "SnowLeopard", Name = "Snow Leopard", Icon = "🐆", Rarity = "Legendary", Chance = 0.9, Coins = 4000, Growth = 40 },
+			{ Id = "BlizzardWyrm", Name = "Blizzard Wyrm", Icon = "🌀", Rarity = "Secret", Chance = 0.1, Coins = 10000, Growth = 60, Launch = 40 },
+		},
+	},
+	{
 		Id = "Spooky",
 		Name = "Spooky Egg",
 		Currency = "Candy",

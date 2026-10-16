@@ -819,12 +819,12 @@ FinishRun.OnServerInvoke = function(player, report)
 	-- max size, always critical and (during a Mutation Storm) always Diamond.
 	local sizeBonusMax = 1 + (stats.MaxRadius - P.StartRadius) / P.SizeBonusDiv
 	local mutation = Config.MaxMutationMult(stats.Mutations)
-	local cap = CourseGen.ValueUpTo(distance + 50, P.PickupValue) * P.MaxCombo * sizeBonusMax * 2 * mutation * stats.CoinMult
+	local cap = CourseGen.ValueUpTo(distance + 50, P.PickupValue * stats.PickupMult) * stats.MaxCombo * sizeBonusMax * 2 * mutation * stats.CoinMult
 	local smashCoins = math.clamp(tonumber(report.SmashCoins) or 0, 0, cap)
 	if smashCoins ~= smashCoins then
 		smashCoins = 0
 	end
-	local distanceCoins = distance * P.DistanceCoinRate * stats.CoinMult
+	local distanceCoins = distance * P.DistanceCoinRate * stats.DistanceMult * stats.CoinMult
 	local earned = math.floor(smashCoins + distanceCoins)
 	local candy = 0
 	if Config.Halloween.Enabled then

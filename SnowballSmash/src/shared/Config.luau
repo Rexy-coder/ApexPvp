@@ -83,6 +83,17 @@ Config.Branches = {
 		BaseCost = 2000, Growth = 3.5, From = "Steer4", Cells = { { -5, 1 }, { -6, 2 }, { -7, 3 }, { -8, 4 } } },
 	{ Id = "TurboTime", Name = "Turbo Time", Icon = "⏱️", Stat = "Turbo length", Desc = "Your Turbo Boost lasts longer.", Per = 0.5, Unit = "s",
 		BaseCost = 4000, Growth = 4, From = "Boost3", Cells = { { -3, 6 }, { -3, 7 }, { -3, 8 } } },
+	-- Update 4: late-game branches
+	{ Id = "ComboMaster", Name = "Combo Master", Icon = "💥", Stat = "Max combo", Desc = "Raise the highest combo multiplier you can reach.", Per = 1, Unit = "x",
+		BaseCost = 15000, Growth = 3.6, From = "Combo5", Cells = { { -6, 6 }, { -7, 7 }, { -8, 8 } } },
+	{ Id = "GoldRush", Name = "Gold Rush", Icon = "🪙", Stat = "Coin pickups", Desc = "Loose coins on the slope are worth more.", Per = 40, Unit = "%",
+		BaseCost = 20000, Growth = 3.6, From = "Coin6", Cells = { { 0, 7 }, { 0, 8 }, { 0, 9 }, { 0, 10 } } },
+	{ Id = "DistancePay", Name = "Distance Pay", Icon = "🏁", Stat = "Distance coins", Desc = "Earn more coins for every stud you roll.", Per = 30, Unit = "%",
+		BaseCost = 30000, Growth = 3.6, From = "Push5", Cells = { { 0, -6 }, { 0, -7 }, { 0, -8 }, { 0, -9 } } },
+	{ Id = "BigStart", Name = "Big Start", Icon = "⛄", Stat = "Start size", Desc = "Start every run with a bigger snowball.", Per = 0.5, Unit = " studs",
+		BaseCost = 12000, Growth = 3.8, From = "Smash5", Cells = { { 6, 0 }, { 7, 0 }, { 8, 0 } } },
+	{ Id = "TurboPower", Name = "Turbo Power", Icon = "🚀", Stat = "Turbo speed", Desc = "Turbo Boost gives a bigger burst of speed.", Per = 25, Unit = "%",
+		BaseCost = 10000, Growth = 3.8, From = "Slick3", Cells = { { 4, -5 }, { 5, -5 }, { 6, -5 } } },
 } :: { Branch }
 
 local ROMAN = { "I", "II", "III", "IV", "V", "VI", "VII", "VIII" }
@@ -405,6 +416,10 @@ export type Stats = {
 	Mutations: { string },
 	MutationKey: string,
 	TurboTime: number,
+	MaxCombo: number,
+	PickupMult: number,
+	DistanceMult: number,
+	TurboSpeed: number,
 }
 
 -- extras: { CoinMult, GrowthMult, LaunchMult, CritBonus, StartRadiusBonus, Mutations, AirMult, GravityMult }
@@ -418,8 +433,8 @@ function Config.ComputeStats(owned: { [string]: boolean }, rebirths: number, ski
 	return {
 		Launch = P.BaseLaunch * (1 + 0.25 * lv("Push")) * (e.LaunchMult or 1),
 		Growth = P.BaseGrowth * (1 + 0.35 * lv("Growth")) * (e.GrowthMult or 1),
-		MaxRadius = P.BaseMaxRadius + 3 * lv("Mega") + (e.StartRadiusBonus or 0),
-		StartRadius = P.StartRadius + (e.StartRadiusBonus or 0),
+		MaxRadius = P.BaseMaxRadius + 3 * lv("Mega") + (e.StartRadiusBonus or 0) + 0.5 * lv("BigStart"),
+		StartRadius = P.StartRadius + (e.StartRadiusBonus or 0) + 0.5 * lv("BigStart"),
 		Smash = P.BaseSmash * (1 + 0.4 * lv("Smash")),
 		CoinMult = (1 + 0.5 * lv("Coin")) * (1 + Config.Rebirth.BonusPer * rebirths) * (1 + skin.Bonus) * (e.CoinMult or 1),
 		ComboTime = P.BaseComboTime + 0.4 * lv("Combo"),
@@ -432,6 +447,10 @@ function Config.ComputeStats(owned: { [string]: boolean }, rebirths: number, ski
 		Mutations = e.Mutations or {},
 		MutationKey = table.concat(e.Mutations or {}, ","),
 		TurboTime = Config.Turbo.Duration + 0.5 * lv("TurboTime"),
+		MaxCombo = P.MaxCombo + lv("ComboMaster"),
+		PickupMult = 1 + 0.4 * lv("GoldRush"),
+		DistanceMult = 1 + 0.3 * lv("DistancePay"),
+		TurboSpeed = Config.Turbo.SpeedAdd * (1 + 0.25 * lv("TurboPower")),
 	}
 end
 

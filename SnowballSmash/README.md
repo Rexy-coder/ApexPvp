@@ -41,7 +41,7 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
   Studded buttons sink when pressed and bounce on hover, wooden panels pop open with a blurred
   background, coins count up, and the hex upgrade tree pans and zooms smoothly. It all scales
   to any screen size.
-* **Upgrade tree:** 17 branches and 68 upgrades (incl. Pet Power, Hatch Luck, Egg Discount, Pet Storage, Candy Collector, Turbo Time).
+* **Upgrade tree:** 22 branches and 85 upgrades (incl. Pet Power, Hatch Luck, Egg Discount, Pet Storage, Treat Collector, Turbo Time, Combo Master, Gold Rush, Distance Pay, Big Start and Turbo Power).
 * **Robux shop:** 10 game passes and 12 developer products (see below), plus coin and candy skins.
 * **Rebirth:** reset for +50% coins per rebirth.
 * **Admin panel:** announcements, server storms, and giving coins, turbos or game passes.
@@ -89,6 +89,16 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
   3D models also show in the inventory, Index, egg odds, admin panel and hatch screen.
 * **🍬 Treat Collector** (the old Candy Collector upgrade) now boosts presents too.
 * **Codes:** `WINTER` (150 presents + 2 Turbos, until 15 Jan 2027) and `METEOR` (5,000 coins).
+
+## Update 4: more upgrades, Blizzard Egg, winter art
+
+* **5 new upgrade branches (17 upgrades)** at the far ends of the tree: **Combo Master** (+1 max
+  combo per level), **Gold Rush** (+40% loose coins), **Distance Pay** (+30% coins per stud),
+  **Big Start** (+0.5 start size) and **Turbo Power** (+25% turbo speed).
+* **Blizzard Egg** (5,000,000 coins, new stand in the lobby): Snow Sprite, Icicle Pup, Frost
+  Mammoth, Blizzard Eagle, Snow Leopard (Legendary) and the Secret **Blizzard Wyrm**, all with 3D
+  models. There are now 35 pets.
+* **Art:** `docs/art/icon_winter_512.png` (game icon) and `docs/art/update_winter_wonderland.png`.
 
 ## Robux shop: put your IDs in `ReplicatedStorage.Shared.Monetization`
 

@@ -535,6 +535,61 @@ SPECS.FrostTitan = { Body = rgb(150, 220, 255), Cube = true, Size = Vector3.new(
 	block(m, Vector3.new(1.2, 0.18, 0.08), CFrame.new(front(ctx, 0, -0.5, -0.02)), rgb(60, 240, 255), { Material = Enum.Material.Neon })
 end }
 
+-- Blizzard Egg -----------------------------------------------------------
+SPECS.SnowSprite = { Body = rgb(110, 195, 255), Size = Vector3.new(1.9, 1.9, 1.9), Feet = false, Material = Enum.Material.Neon, Extra = function(m, ctx)
+	sideWings(m, ctx, rgb(235, 250, 255), 1.15)
+	for _, side in { -1, 1 } do
+		blob(m, Vector3.new(0.5, 0.9, 0.12), at(side * (ctx.A + 0.35), 0.35, 0.3) * CFrame.Angles(0, 0, side * math.rad(-35)), rgb(235, 250, 255), { Material = Enum.Material.Neon, Transparency = 0.25 })
+	end
+	diamond(m, Vector3.new(0.4, 0.4, 0.4), at(0, ctx.Top + 0.3, 0) * CFrame.Angles(math.rad(45), 0, 0), WHITE, { Material = Enum.Material.Neon })
+end }
+SPECS.IciclePup = { Body = rgb(185, 222, 250), Belly = rgb(240, 248, 255), Ears = "Bear", EarColor = rgb(120, 175, 235), EarInner = rgb(225, 240, 255), Extra = function(m, ctx)
+	snout(m, ctx, rgb(240, 248, 255))
+	tail(m, ctx, rgb(185, 222, 250), Vector3.new(0.5, 0.5, 1), rgb(120, 175, 235))
+	cone(m, at(0, ctx.Top - 0.15, 0) * CFrame.Angles(math.rad(8), 0, 0), 0.22, 0.75, rgb(200, 245, 255), 4, { Material = Enum.Material.Glass, Transparency = 0.1 })
+	blob(m, Vector3.new(0.3, 0.2, 0.1), CFrame.new(front(ctx, 0, -0.55, -0.02)), PINK)
+end }
+SPECS.FrostMammoth = { Body = rgb(150, 112, 90), Size = Vector3.new(2.7, 2.4, 2.5), Ears = "Bear", EarColor = rgb(125, 90, 72), EarInner = rgb(205, 160, 140), Extra = function(m, ctx)
+	-- frosty fur cap
+	blob(m, Vector3.new(ctx.A * 1.9, 0.7, ctx.C * 1.9), at(0, ctx.Top - 0.18, 0.05), rgb(235, 245, 255), { Material = Enum.Material.Snow })
+	-- trunk
+	local trunk = CFrame.new(front(ctx, 0, -0.35, -0.15))
+	blob(m, Vector3.new(0.55, 0.7, 0.6), trunk, rgb(150, 112, 90))
+	blob(m, Vector3.new(0.5, 0.5, 0.7), trunk * at(0, -0.5, -0.1), rgb(150, 112, 90))
+	for _, side in { -1, 1 } do
+		cone(m, at(side * 0.75, -0.55, -ctx.C + 0.3) * CFrame.Angles(math.rad(-90), 0, 0) * CFrame.Angles(0, 0, side * math.rad(12)), 0.2, 1.1, rgb(250, 245, 230), 5)
+	end
+end }
+SPECS.BlizzardEagle = { Body = rgb(120, 175, 235), Belly = rgb(235, 245, 255), EyeRing = GOLD, EyeX = 0.46, FeetColor = ORANGE, Extra = function(m, ctx)
+	beak(m, ctx, rgb(255, 200, 60))
+	batWings(m, ctx, rgb(225, 240, 255), 1.3)
+	for i = -1, 1 do
+		diamond(m, Vector3.new(0.4, 0.55, 0.1), at(i * 0.26, ctx.Top + 0.12 - math.abs(i) * 0.08, 0.1) * CFrame.Angles(0, math.rad(90), math.rad(i * 24)), rgb(70, 130, 220))
+	end
+	tail(m, ctx, rgb(225, 240, 255), Vector3.new(0.9, 0.2, 1.1), rgb(70, 130, 220))
+end }
+SPECS.SnowLeopard = { Body = rgb(228, 230, 240), Ears = "Cat", EarInner = rgb(170, 175, 200), Extra = function(m, ctx)
+	snout(m, ctx, rgb(245, 245, 252), rgb(120, 110, 130))
+	local dark = rgb(70, 72, 98)
+	for _, sp in { { -0.7, 0.7 }, { 0.75, 0.55 }, { -0.95, 0.05 }, { 0.95, -0.1 }, { -0.5, -0.65 }, { 0.55, -0.7 }, { 0, 0.95 } } do
+		local sx, sy = sp[1], sp[2]
+		local k = math.sqrt(math.max(0.02, 1 - (sx / ctx.A) ^ 2 - (sy / ctx.B) ^ 2))
+		blob(m, Vector3.new(0.34, 0.28, 0.12), at(sx, sy, -ctx.C * k - 0.02), dark)
+	end
+	local t = at(0, -0.3, ctx.C + 0.4) * CFrame.Angles(math.rad(-25), 0, 0)
+	blob(m, Vector3.new(0.38, 0.38, 1.7), t, rgb(228, 230, 240))
+	for i = 0, 2 do
+		blob(m, Vector3.new(0.42, 0.42, 0.18), t * at(0, 0, -0.5 + i * 0.5), dark)
+	end
+end }
+SPECS.BlizzardWyrm = { Body = rgb(90, 65, 210), Belly = rgb(170, 150, 255), Size = Vector3.new(2.6, 2.4, 2.4), EyeGlow = true, Eye = rgb(100, 245, 255), Material = Enum.Material.Neon, Extra = function(m, ctx)
+	horns(m, ctx, rgb(120, 245, 255), 0.85)
+	batWings(m, ctx, rgb(120, 245, 255), 1.3)
+	backSpikes(m, ctx, rgb(200, 255, 255), 3)
+	tail(m, ctx, rgb(90, 65, 210), Vector3.new(0.55, 0.55, 1.6), rgb(120, 245, 255))
+	cyl(m, 0.1, 3.2, at(0, ctx.Top + 0.75, 0), rgb(180, 255, 255), { Material = Enum.Material.Neon, Transparency = 0.35 })
+end }
+
 ----------------------------------------------------------------------
 -- Glow for the rare ones
 ----------------------------------------------------------------------
