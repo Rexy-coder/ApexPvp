@@ -722,7 +722,7 @@ refreshDurations()
 local eventButtons: { [string]: UIKit.Button } = {}
 local stormIndex = 0
 for _, e in Config.Events do
-	if not e.Crazy then
+	if not e.Crazy and not e.Custom then
 		local col = stormIndex % 3
 		local rowI = stormIndex // 3
 		stormIndex += 1
@@ -744,6 +744,37 @@ end
 smallButton(stormSection, "⛔ Stop ALL events", UDim2.fromOffset(280, 46), UDim2.fromOffset(14, 240), C.Red, C.RedDark, function()
 	admin("StopEvent", { Id = "All", Global = globalOn })
 end)
+
+-- custom multipliers: type any number (x999, x10000, x1000000...)
+local customSection = section(eventsPage, "✖️ Custom multiplier storms (type ANY multiplier)", 214)
+UIKit.label({ Text = "x", Size = UDim2.fromOffset(30, 46), Position = UDim2.fromOffset(14, 44), Stroke = 3, Parent = customSection })
+local multBox = UIKit.textbox(customSection, "999", UDim2.fromOffset(250, 46), UDim2.fromOffset(44, 44))
+multBox.Text = "100"
+for i, quick in { 10, 100, 999, 10000, 1000000 } do
+	smallButton(customSection, "x" .. Config.Short(quick), UDim2.fromOffset(104, 46), UDim2.fromOffset(310 + (i - 1) * 112, 44), C.WoodDark, C.Outline, function()
+		multBox.Text = tostring(quick)
+	end)
+end
+UIKit.label({ Text = "Uses the duration picked above. Everyone in the server gets it.", TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 230, 190), Size = UDim2.new(1, -30, 0, 22), Position = UDim2.fromOffset(16, 100), Stroke = 1.5, Parent = customSection })
+local customIndex = 0
+for _, e in Config.Events do
+	if e.Custom then
+		eventButtons[e.Id] = UIKit.button({
+			Size = UDim2.fromOffset(280, 56),
+			Position = UDim2.fromOffset(14 + customIndex * 292, 138),
+			Color = e.Color,
+			DarkColor = darker(e.Color),
+			Text = e.Name,
+			Icon = e.Icon,
+			Parent = customSection,
+			Corner = 10,
+			OnClick = function()
+				admin("StartEvent", { Id = e.Id, Minutes = chosenMinutes, Global = globalOn, Mult = tonumber(multBox.Text) })
+			end,
+		})
+		customIndex += 1
+	end
+end
 
 ----------------------------------------------------------------------
 -- Players tab: list on the left, actions on the right

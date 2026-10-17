@@ -30,6 +30,9 @@ Sounds.CrazyMusic = {
 	Meteor = "",
 	Galaxy = "",
 	PetParty = "",
+	Blizzard = "",
+	GoldFrenzy = "",
+	Thunder = "",
 }
 
 ----------------------------------------------------------------------

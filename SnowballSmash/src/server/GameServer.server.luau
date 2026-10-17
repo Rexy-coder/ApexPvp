@@ -206,6 +206,12 @@ local function eventActive(id: string): boolean
 	return type(ends) == "number" and ends > now()
 end
 
+-- the multiplier an admin typed for a Custom event (x999, x10000...)
+local function eventMult(id: string): number
+	local m = GameState:GetAttribute("EventMult_" .. id)
+	return if type(m) == "number" and m >= 1 then m else 1
+end
+
 local function extrasFor(player: Player)
 	local data = profiles[player]
 	local extras = { CoinMult = 1, GrowthMult = 1, LaunchMult = 1, CritBonus = 0, StartRadiusBonus = 0, Mutations = {}, AirMult = 1, GravityMult = 1 }
@@ -236,7 +242,7 @@ local function extrasFor(player: Player)
 				launch += pet.Launch * vm
 			end
 		end
-		local petPower = Config.PetPowerMult(data.Owned) * Config.EventProduct("PetPowerMult", eventActive)
+		local petPower = Config.PetPowerMult(data.Owned) * Config.EventProduct("PetPowerMult", eventActive, eventMult)
 		coins = coins * petPower + #Pets.CompletedEggs(data.Index) * Pets.IndexBonus
 		extras.CoinMult *= 1 + coins / 100
 		extras.GrowthMult *= 1 + growth * petPower / 100
@@ -244,7 +250,7 @@ local function extrasFor(player: Player)
 	end
 	for _, e in Config.Events do
 		if eventActive(e.Id) then
-			extras.CoinMult *= e.CoinMult or 1
+			extras.CoinMult *= (if e.Custom == "CoinMult" then eventMult(e.Id) else e.CoinMult) or 1
 			extras.GrowthMult *= e.GrowthMult or 1
 			extras.LaunchMult *= e.LaunchMult or 1
 			extras.CritBonus += e.CritBonus or 0
@@ -335,15 +341,20 @@ local function notify(player: Player?, kind: string, payload: any)
 	end
 end
 
-local function startEvent(id: string, minutes: number, by: string, extend: boolean)
+local function startEvent(id: string, minutes: number, by: string, extend: boolean, mult: number?)
 	local def = Config.EventById[id]
 	if not def then
 		return false
 	end
+	local appliedMult = nil
+	if def.Custom then
+		appliedMult = math.clamp(tonumber(mult) or 2, 1, Config.CrazyEvents.MaxCustomMultiplier)
+		GameState:SetAttribute("EventMult_" .. id, appliedMult)
+	end
 	local current = GameState:GetAttribute("Event_" .. id)
 	local base = if extend and type(current) == "number" and current > now() then current else now()
 	GameState:SetAttribute("Event_" .. id, base + minutes * 60)
-	notify(nil, "EventStarted", { Id = id, By = by, Minutes = minutes })
+	notify(nil, "EventStarted", { Id = id, By = by, Minutes = minutes, Mult = appliedMult })
 	return true
 end
 
@@ -539,8 +550,9 @@ end
 local function hatchLuck(player: Player, data): number
 	local luck = (if hasPass(player, "LuckyEggs") then Perks.LuckyEggsLuck else 1) * Config.HatchLuckMult(data.Owned)
 	for _, e in Config.Events do
-		if e.HatchLuck and eventActive(e.Id) then
-			luck *= e.HatchLuck
+		local boost = if e.Custom == "HatchLuck" then eventMult(e.Id) else e.HatchLuck
+		if boost and eventActive(e.Id) then
+			luck *= boost
 		end
 	end
 	return luck
@@ -990,7 +1002,7 @@ local function runAdminMessage(msg)
 		if Config.EventById[msg.Id].Crazy then
 			startCrazy(msg.Id, minutes, tostring(msg.By))
 		else
-			startEvent(msg.Id, minutes, tostring(msg.By), false)
+			startEvent(msg.Id, minutes, tostring(msg.By), false, tonumber(msg.Mult))
 		end
 	elseif msg.Kind == "StopAll" then
 		stopAllEvents()
@@ -1071,8 +1083,17 @@ actions.StartEvent = function(admin: Player, args)
 		return false, "An event is already starting!"
 	end
 	local global = args.Global == true
-	adminSend({ Kind = "Event", Id = def.Id, Minutes = minutes, By = admin.DisplayName }, global)
-	return true, def.Name .. (if def.Crazy then " incoming" else " started") .. " (" .. minutes .. " min)" .. (if global then " in ALL servers!" else "")
+	local mult = nil
+	if def.Custom then
+		mult = tonumber(args.Mult)
+		if not mult or mult ~= mult or mult < 1 then
+			return false, "Type a multiplier first (1 or more, e.g. 999)"
+		end
+		mult = math.min(mult, Config.CrazyEvents.MaxCustomMultiplier)
+	end
+	adminSend({ Kind = "Event", Id = def.Id, Minutes = minutes, By = admin.DisplayName, Mult = mult }, global)
+	local what = if mult then "x" .. Config.Short(mult) .. " " .. (def.Label or "") .. " storm" else def.Name
+	return true, what .. (if def.Crazy then " incoming" else " started") .. " (" .. minutes .. " min)" .. (if global then " in ALL servers!" else "")
 end
 
 actions.StopEvent = function(_admin: Player, args)

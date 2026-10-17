@@ -202,6 +202,12 @@ end
 ----------------------------------------------------------------------
 -- Boosts, storms and the side list
 ----------------------------------------------------------------------
+-- the multiplier an admin typed for a Custom event
+local function eventMult(id: string): number
+	local m = GameState:GetAttribute("EventMult_" .. id)
+	return if type(m) == "number" and m >= 1 then m else 1
+end
+
 local function activeEvents()
 	local list = {}
 	local t = serverNow()
@@ -227,7 +233,11 @@ refreshBoosts = function()
 	end
 	local events = activeEvents()
 	for _, ev in events do
-		table.insert(entries, { Key = "Event_" .. ev.Def.Id, Icon = ev.Def.Icon, Text = ev.Def.Name, Color = ev.Def.Color, EndsAt = ev.EndsAt })
+		local text = ev.Def.Name
+		if ev.Def.Custom then
+			text = "x" .. Config.Short(eventMult(ev.Def.Id)) .. " " .. (ev.Def.Label or "")
+		end
+		table.insert(entries, { Key = "Event_" .. ev.Def.Id, Icon = ev.Def.Icon, Text = text, Color = ev.Def.Color, EndsAt = ev.EndsAt })
 	end
 
 	local mutations = {}
@@ -281,8 +291,13 @@ Notify.OnClientEvent:Connect(function(kind: string, payload)
 	elseif kind == "EventStarted" then
 		local def = Config.EventById[payload.Id]
 		if def then
-			Hud.announce(def.Icon .. " " .. string.upper(def.Name), def.Desc .. "  (" .. tostring(payload.Minutes) .. " min, by " .. tostring(payload.By) .. ")", def.Color)
-			systemChat(def.Name .. " started by " .. tostring(payload.By) .. "!")
+			local name, desc = def.Name, def.Desc
+			if def.Custom and type(payload.Mult) == "number" then
+				name = "x" .. Config.Short(payload.Mult) .. " " .. (def.Label or "") .. " Storm"
+				desc = "Everyone gets x" .. Config.Short(payload.Mult) .. " " .. string.lower(def.Label or "") .. "!"
+			end
+			Hud.announce(def.Icon .. " " .. string.upper(name), desc .. "  (" .. tostring(payload.Minutes) .. " min, by " .. tostring(payload.By) .. ")", def.Color)
+			systemChat(name .. " started by " .. tostring(payload.By) .. "!")
 			Effects.play("Notify", 1.2)
 		end
 		refreshBoosts()

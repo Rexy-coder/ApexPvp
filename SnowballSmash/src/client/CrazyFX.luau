@@ -46,6 +46,24 @@ local LOOKS = {
 		CC = { TintColor = rgb(255, 205, 185), Saturation = 0.35 },
 		StarCount = nil,
 	},
+	Blizzard = {
+		Lighting = { ClockTime = 12, Brightness = 2.4, Ambient = rgb(170, 190, 225), OutdoorAmbient = rgb(205, 218, 245) },
+		Atmosphere = { Color = rgb(232, 241, 255), Decay = rgb(170, 190, 225), Density = 0.55, Haze = 3 },
+		CC = { TintColor = rgb(225, 238, 255), Saturation = -0.1 },
+		StarCount = nil,
+	},
+	GoldFrenzy = {
+		Lighting = { ClockTime = 17, Brightness = 3, Ambient = rgb(185, 150, 80), OutdoorAmbient = rgb(235, 190, 100) },
+		Atmosphere = { Color = rgb(255, 215, 110), Decay = rgb(200, 140, 40), Density = 0.35, Haze = 1.5 },
+		CC = { TintColor = rgb(255, 238, 190), Saturation = 0.5 },
+		StarCount = nil,
+	},
+	Thunder = {
+		Lighting = { ClockTime = 21, Brightness = 1.3, Ambient = rgb(70, 80, 135), OutdoorAmbient = rgb(95, 105, 165) },
+		Atmosphere = { Color = rgb(95, 105, 155), Decay = rgb(40, 40, 95), Density = 0.5, Haze = 2.5 },
+		CC = { TintColor = rgb(200, 210, 255), Saturation = 0.1 },
+		StarCount = nil,
+	},
 	PetParty = {
 		Lighting = { ClockTime = 15.2, Brightness = 3, Ambient = rgb(170, 130, 190), OutdoorAmbient = rgb(210, 170, 230) },
 		Atmosphere = { Color = rgb(255, 170, 225), Decay = rgb(200, 110, 200), Density = 0.3, Haze = 1 },
@@ -165,51 +183,114 @@ local function galaxyOff()
 end
 
 ----------------------------------------------------------------------
--- Pet Party confetti
+-- Weather that falls around the camera: confetti, blizzard, gold, rain
 ----------------------------------------------------------------------
-local confettiPart: Part? = nil
+local RAINBOW = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, rgb(255, 90, 140)),
+	ColorSequenceKeypoint.new(0.2, rgb(255, 225, 80)),
+	ColorSequenceKeypoint.new(0.4, rgb(100, 255, 160)),
+	ColorSequenceKeypoint.new(0.6, rgb(90, 190, 255)),
+	ColorSequenceKeypoint.new(0.8, rgb(210, 120, 255)),
+	ColorSequenceKeypoint.new(1, rgb(255, 150, 60)),
+})
 
-local function partyOn()
-	if confettiPart then
+local WEATHER = {
+	PetParty = { Color = RAINBOW, Size = 0.55, Rate = 150, Life = NumberRange.new(3, 5), Speed = NumberRange.new(8, 16), Spread = 20,
+		Accel = Vector3.new(0, -4, 0), Light = 0.3, Spin = true, Height = 45 },
+	Blizzard = { Color = ColorSequence.new(rgb(255, 255, 255), rgb(190, 225, 255)), Size = 0.5, Rate = 900, Life = NumberRange.new(1.5, 2.5), Speed = NumberRange.new(45, 70),
+		Spread = 12, Accel = Vector3.new(-70, -10, 12), Light = 0.35, Height = 40, Transparency = 0.15 },
+	GoldFrenzy = { Color = ColorSequence.new(rgb(255, 250, 170), rgb(255, 190, 30)), Size = 0.7, Rate = 170, Life = NumberRange.new(3, 5), Speed = NumberRange.new(6, 12),
+		Spread = 25, Accel = Vector3.new(0, -3, 0), Light = 1, Spin = true, Height = 45 },
+	Thunder = { Color = ColorSequence.new(rgb(200, 220, 255), rgb(120, 150, 255)), Size = 0.22, Rate = 1000, Life = NumberRange.new(0.8, 1.1), Speed = NumberRange.new(110, 140),
+		Spread = 4, Accel = Vector3.new(-12, 0, 0), Light = 0.2, Height = 45, Transparency = 0.35, Streak = true },
+}
+
+local weatherPart: Part? = nil
+local weatherHeight = 45
+
+local function weatherOn(id: string)
+	local spec = WEATHER[id]
+	if not spec or weatherPart then
 		return
 	end
 	local sp = Instance.new("Part")
-	sp.Name = "PartyConfetti"
+	sp.Name = "EventWeather"
 	sp.Anchored = true
 	sp.CanCollide = false
 	sp.CanQuery = false
 	sp.CanTouch = false
 	sp.Transparency = 1
-	sp.Size = Vector3.new(150, 2, 150)
+	sp.Size = Vector3.new(170, 2, 170)
 	sp.Parent = Workspace
 	local e = Instance.new("ParticleEmitter")
-	e.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, rgb(255, 90, 140)),
-		ColorSequenceKeypoint.new(0.2, rgb(255, 225, 80)),
-		ColorSequenceKeypoint.new(0.4, rgb(100, 255, 160)),
-		ColorSequenceKeypoint.new(0.6, rgb(90, 190, 255)),
-		ColorSequenceKeypoint.new(0.8, rgb(210, 120, 255)),
-		ColorSequenceKeypoint.new(1, rgb(255, 150, 60)),
-	})
-	e.LightEmission = 0.3
-	e.Size = NumberSequence.new(0.55)
-	e.Rate = 150
-	e.Lifetime = NumberRange.new(3, 5)
-	e.Speed = NumberRange.new(8, 16)
+	e.Color = spec.Color
+	e.LightEmission = spec.Light
+	e.Size = NumberSequence.new(spec.Size)
+	e.Rate = spec.Rate
+	e.Lifetime = spec.Life
+	e.Speed = spec.Speed
 	e.EmissionDirection = Enum.NormalId.Bottom
-	e.SpreadAngle = Vector2.new(20, 20)
-	e.Rotation = NumberRange.new(0, 360)
-	e.RotSpeed = NumberRange.new(-240, 240)
-	e.Acceleration = Vector3.new(0, -4, 0)
+	e.SpreadAngle = Vector2.new(spec.Spread, spec.Spread)
+	e.Acceleration = spec.Accel
+	e.Transparency = NumberSequence.new(spec.Transparency or 0)
+	if spec.Spin then
+		e.Rotation = NumberRange.new(0, 360)
+		e.RotSpeed = NumberRange.new(-240, 240)
+	end
+	if spec.Streak then
+		e.Orientation = Enum.ParticleOrientation.VelocityParallel
+		e.Size = NumberSequence.new(0.3)
+		e.Squash = NumberSequence.new(-6)
+	end
 	e.Parent = sp
-	confettiPart = sp
+	weatherPart = sp
+	weatherHeight = spec.Height
 end
 
-local function partyOff()
-	if confettiPart then
-		confettiPart:Destroy()
-		confettiPart = nil
+local function weatherOff()
+	if weatherPart then
+		weatherPart:Destroy()
+		weatherPart = nil
 	end
+end
+
+----------------------------------------------------------------------
+-- Lightning (Thunder Storm): a bright flash, a bolt from the sky, shake
+----------------------------------------------------------------------
+local nextBolt = 0
+
+local function lightning(camera: Camera)
+	local look = camera.CFrame.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z)
+	flat = if flat.Magnitude > 0.01 then flat.Unit else Vector3.new(0, 0, -1)
+	local target = camera.CFrame.Position + flat * math.random(80, 260) + Vector3.new(math.random(-140, 140), 0, 0)
+	local top = target + Vector3.new(math.random(-30, 30), 340, math.random(-30, 30))
+	local last = top
+	for i = 1, 7 do
+		local nextPoint = top:Lerp(target, i / 7) + (if i < 7 then Vector3.new(math.random(-14, 14), 0, math.random(-14, 14)) else Vector3.zero)
+		local seg = Instance.new("Part")
+		seg.Anchored = true
+		seg.CanCollide = false
+		seg.CanQuery = false
+		seg.CanTouch = false
+		seg.CastShadow = false
+		seg.Material = Enum.Material.Neon
+		seg.Color = rgb(235, 240, 255)
+		local len = (nextPoint - last).Magnitude
+		seg.Size = Vector3.new(1.6, 1.6, len)
+		seg.CFrame = CFrame.lookAt(last:Lerp(nextPoint, 0.5), nextPoint)
+		seg.Parent = Workspace
+		Debris:AddItem(seg, 0.18)
+		last = nextPoint
+	end
+	Effects.burst(target + Vector3.new(0, 1, 0), rgb(220, 230, 255), 22, 2)
+	local d = (camera.CFrame.Position - target).Magnitude
+	Effects.shake(math.clamp(2 - d / 150, 0.3, 1.6))
+	Effects.play("MeteorImpact", 1.7, math.clamp(1.3 - d / 250, 0.25, 1))
+	-- screen flash: briefly brighter lighting
+	local normal = Lighting.Brightness
+	Lighting.Brightness = normal + 3
+	TweenService:Create(Lighting, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Brightness = normal }):Play()
 end
 
 ----------------------------------------------------------------------
@@ -292,8 +373,12 @@ RunService.Heartbeat:Connect(function(dt)
 	if starPart then
 		starPart.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, 30, 0))
 	end
-	if confettiPart then
-		confettiPart.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, 45, 0))
+	if weatherPart then
+		weatherPart.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, weatherHeight, 0))
+	end
+	if active == "Thunder" and os.clock() > nextBolt then
+		nextBolt = os.clock() + 1.5 + math.random() * 3.5
+		lightning(camera)
 	end
 	if active == "Meteor" then
 		ambientT += dt
@@ -331,10 +416,9 @@ function CrazyFX.setActive(id: string?)
 	else
 		galaxyOff()
 	end
-	if id == "PetParty" then
-		partyOn()
-	else
-		partyOff()
+	weatherOff()
+	if id then
+		weatherOn(id)
 	end
 	local look = id and LOOKS[id]
 	if look then

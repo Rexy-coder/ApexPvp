@@ -47,5 +47,10 @@ uploads icons (needs an Open Cloud API key; never share it). Universe ID 1077052
   hatches, admin can give shiny pets. Art in `docs/art/*pet_paradise*`.
   The pet preview renders used for the art come from a small ray tracer (not in the repo).
 
+- Update 6: 3 more crazy events (Blizzard, GoldFrenzy, Thunder; weather + lightning in
+  `CrazyFX`), custom multiplier storms (CoinsX / LuckX / PetsX, the multiplier lives in the
+  `EventMult_<id>` GameState attribute), winter thumbnail `docs/art/thumbnail_winter_1920x1080.png`.
+  Winter + Pet Paradise + these events ship together as "the Winter Update".
+
 ## Ideas not built yet
 Nothing planned. Ask the owner what they want next.

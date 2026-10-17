@@ -330,6 +330,8 @@ export type EventDef = {
 	Crazy: boolean?, -- a big "admin abuse" style event (see Config.CrazyEvents)
 	EggPriceMult: number?, -- Pet Party: eggs cost less
 	PetPowerMult: number?, -- Pet Party: equipped pets give more
+	Custom: string?, -- "CoinMult" | "HatchLuck" | "PetPowerMult": the admin types the multiplier (x999, x10000...)
+	Label: string?, -- what a custom multiplier is called ("Coins")
 }
 
 Config.Events = {
@@ -339,6 +341,10 @@ Config.Events = {
 	{ Id = "Growth", Name = "Mega Growth", Icon = "⛄", Desc = "Snowballs grow twice as fast!", Color = Color3.fromRGB(110, 200, 255), GrowthMult = 2 },
 	{ Id = "Speed", Name = "Blizzard Speed", Icon = "🌪️", Desc = "Launch 50% faster!", Color = Color3.fromRGB(60, 150, 255), LaunchMult = 1.5 },
 	{ Id = "Lucky", Name = "Lucky Storm", Icon = "🍀", Desc = "+25% critical chance!", Color = Color3.fromRGB(80, 210, 120), CritBonus = 0.25 },
+	-- CUSTOM MULTIPLIER STORMS: the admin types any multiplier (x999, x10000, x1000000...)
+	{ Id = "CoinsX", Name = "Custom Coin Storm", Icon = "💎", Desc = "All coins multiplied!", Color = Color3.fromRGB(60, 220, 160), Custom = "CoinMult", Label = "Coins" },
+	{ Id = "LuckX", Name = "Custom Luck Storm", Icon = "🎰", Desc = "Hatch luck multiplied!", Color = Color3.fromRGB(255, 130, 90), Custom = "HatchLuck", Label = "Luck" },
+	{ Id = "PetsX", Name = "Custom Pet Storm", Icon = "🐾", Desc = "Pet bonuses multiplied!", Color = Color3.fromRGB(255, 120, 200), Custom = "PetPowerMult", Label = "Pets" },
 	-- CRAZY EVENTS: start on their own every so often (and from the admin panel)
 	{ Id = "Meteor", Name = "Meteor Shower", Icon = "☄️", Desc = "Meteors crash into the lobby - grab the glowing shards! Obstacles turn MOLTEN (x10)!",
 		Color = Color3.fromRGB(255, 90, 40), Crazy = true, Mutations = { "Molten" }, CoinMult = 1.5 },
@@ -346,14 +352,21 @@ Config.Events = {
 		Color = Color3.fromRGB(150, 90, 255), Crazy = true, Mutations = { "Galaxy" }, AirMult = 1.8, GravityMult = 0.55, HatchLuck = 2 },
 	{ Id = "PetParty", Name = "Pet Party", Icon = "🎉", Desc = "Confetti! Eggs cost HALF and your equipped pets give +50% more!",
 		Color = Color3.fromRGB(255, 110, 190), Crazy = true, EggPriceMult = 0.5, PetPowerMult = 1.5 },
+	{ Id = "Blizzard", Name = "Whiteout Blizzard", Icon = "🌨️", Desc = "A whiteout! Launch x2, snowballs grow x3 and obstacles FREEZE (x12)!",
+		Color = Color3.fromRGB(150, 210, 255), Crazy = true, Mutations = { "Frozen" }, LaunchMult = 2, GrowthMult = 3 },
+	{ Id = "GoldFrenzy", Name = "Gold Rush Frenzy", Icon = "🪙", Desc = "It's raining gold! All coins x3 and obstacles turn GILDED (x20)!",
+		Color = Color3.fromRGB(255, 200, 40), Crazy = true, Mutations = { "Gilded" }, CoinMult = 3 },
+	{ Id = "Thunder", Name = "Thunder Storm", Icon = "⛈️", Desc = "Lightning everywhere! +50% critical chance and CHARGED obstacles (x12)!",
+		Color = Color3.fromRGB(120, 140, 255), Crazy = true, Mutations = { "Charged" }, CritBonus = 0.5 },
 } :: { EventDef }
 
 -- Multiply one numeric field (EggPriceMult, PetPowerMult...) over every running event.
 -- isActive(eventId) says whether an event is on (server and client each know differently).
-function Config.EventProduct(field: string, isActive: (string) -> boolean): number
+-- custom(eventId) gives the multiplier the admin typed for a Custom event of that field.
+function Config.EventProduct(field: string, isActive: (string) -> boolean, custom: ((string) -> number)?): number
 	local product = 1
 	for _, e in Config.Events do
-		local v = (e :: any)[field]
+		local v = if e.Custom == field and custom then custom(e.Id) else (e :: any)[field]
 		if v and isActive(e.Id) then
 			product *= v
 		end
@@ -372,6 +385,9 @@ Config.Mutations = {
 	{ Id = "Golden", Chance = 0.25, Mult = 3, Color = Color3.fromRGB(255, 200, 40), Material = Enum.Material.Foil },
 	{ Id = "Molten", Chance = 0.22, Mult = 10, Color = Color3.fromRGB(255, 90, 20), Material = Enum.Material.CrackedLava },
 	{ Id = "Galaxy", Chance = 0.2, Mult = 15, Color = Color3.fromRGB(120, 60, 255), Material = Enum.Material.Neon },
+	{ Id = "Frozen", Chance = 0.22, Mult = 12, Color = Color3.fromRGB(170, 230, 255), Material = Enum.Material.Ice },
+	{ Id = "Gilded", Chance = 0.3, Mult = 20, Color = Color3.fromRGB(255, 205, 60), Material = Enum.Material.Foil },
+	{ Id = "Charged", Chance = 0.2, Mult = 12, Color = Color3.fromRGB(255, 240, 90), Material = Enum.Material.Neon },
 }
 Config.MutationById = {}
 for _, m in Config.Mutations do
@@ -402,7 +418,8 @@ Config.CrazyEvents = {
 	MaxMinutes = 50,
 	Minutes = 5,
 	WarningSeconds = 10,
-	Pool = { "Meteor", "Galaxy", "PetParty" },
+	Pool = { "Meteor", "Galaxy", "PetParty", "Blizzard", "GoldFrenzy", "Thunder" },
+	MaxCustomMultiplier = 1e9, -- the biggest multiplier an admin can type
 	-- Meteor Shower: a meteor crashes into the lobby every ShardEvery seconds and
 	-- leaves a glowing shard; touching it pays max(ShardMinCoins, best run x ShardBestShare)
 	ShardEvery = 2.5,

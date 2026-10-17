@@ -221,7 +221,15 @@ local function fillEggPanel(eggId: string)
 			c:Destroy()
 		end
 	end
-	local luck = (if hasPass("LuckyEggs") then 1.5 else 1) * (if data then Config.HatchLuckMult(data.Owned) else 1)
+	local luckState = ReplicatedStorage:FindFirstChild("GameState")
+	local eventLuck = Config.EventProduct("HatchLuck", function(id)
+		local ends = luckState and luckState:GetAttribute("Event_" .. id)
+		return type(ends) == "number" and ends > Workspace:GetServerTimeNow()
+	end, function(id)
+		local m = luckState and luckState:GetAttribute("EventMult_" .. id)
+		return if type(m) == "number" and m >= 1 then m else 1
+	end)
+	local luck = (if hasPass("LuckyEggs") then 1.5 else 1) * (if data then Config.HatchLuckMult(data.Owned) else 1) * eventLuck
 	local odds = Pets.Odds(eggId, luck)
 	for i, pet in egg.Pets do
 		local known = data ~= nil and data.Index[pet.Id] == true

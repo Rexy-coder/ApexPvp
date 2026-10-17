@@ -715,7 +715,7 @@ end
 -- live server state (storm end times) replicated to every client as attributes
 local gameState = Instance.new("Configuration")
 gameState.Name = "GameState"
-for _, id in { "Coins2", "Coins3", "Mutation", "Growth", "Speed", "Lucky", "Meteor", "Galaxy", "PetParty" } do
+for _, id in { "Coins2", "Coins3", "Mutation", "Growth", "Speed", "Lucky", "Meteor", "Galaxy", "PetParty", "Blizzard", "GoldFrenzy", "Thunder", "CoinsX", "LuckX", "PetsX" } do
 	gameState:SetAttribute("Event_" .. id, 0)
 end
 gameState:SetAttribute("CrazyAuto", true)

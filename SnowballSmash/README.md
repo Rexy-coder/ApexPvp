@@ -115,6 +115,25 @@ The power bar fills, then swings back down. Release at the top for **MAX POWER!*
 * **Admin:** the Players tab can give any pet as Normal, Golden or Rainbow.
 * **Art:** `docs/art/icon_pet_paradise_512.png` and `docs/art/update_pet_paradise.png`.
 
+## The Winter Update (Updates 3 + 5 + 6 together)
+
+Winter Wonderland, Pet Paradise (Golden/Rainbow pets, fusion, Pet Party) and the events below are
+one release. Thumbnail: `docs/art/thumbnail_winter_1920x1080.png`.
+
+### Update 6: more crazy events and custom multipliers
+* **3 more crazy events** (6 in total, all in the random pool and the admin panel):
+  * **🌨️ Whiteout Blizzard:** white-out snowfall, launch x2, snowballs grow x3, obstacles turn
+    **❄️ Frozen (x12)**.
+  * **🪙 Gold Rush Frenzy:** golden sky with gold raining down, all coins x3, obstacles turn
+    **Gilded (x20)**.
+  * **⛈️ Thunder Storm:** dark sky, rain and real lightning bolts with a flash and shake,
+    +50% critical chance, obstacles turn **⚡ Charged (x12)**.
+* **✖️ Custom multiplier storms** (admin panel, Events tab): type **any** multiplier (x999,
+  x10000, x1,000,000... up to `Config.CrazyEvents.MaxCustomMultiplier`) and start a **Custom Coin
+  Storm**, **Custom Luck Storm** (hatch luck) or **Custom Pet Storm** (pet bonuses) for the
+  duration you picked. Quick buttons: x10, x100, x999, x10K, x1M. It shows on everyone's screen
+  as e.g. "x999 Coins" and works for all servers with the "all servers" switch.
+
 ## Robux shop: put your IDs in `ReplicatedStorage.Shared.Monetization`
 
 Create the passes and products on the Creator Dashboard (*your game → Monetization →
